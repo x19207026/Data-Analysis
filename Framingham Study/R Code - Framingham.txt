@@ -1,0 +1,626 @@
+                         ######### ΚΕΦΑΛΑΙΟ 2: ΠΕΡΙΓΡΑΦΙΚΗ ΑΝΑΛΥΣΗ ##########
+library(foreign)
+framham<-read.spss("12_framdata.sav",to.data.frame = TRUE,use.value.labels=TRUE,use.missings = to.data.frame)
+attach(framham)
+#AGE: Ηλικία του ασθενή
+#SBP: Συστολική πίεση του ασθενή
+#DBP: Διαστολική πίεση του ασθενή
+#CHOL: Τιμές της χοληστερόλης του ασθενή
+#CIG: Αριθμός τσιγάρων που καπνίζει ο ασθενής την ημέρα
+#MALE: Φύλο: 0: Γυναίκα, 1: Άνδρας
+#ZRE_1:Standardized Residual for SBP
+#ZRE_2:Standardized Residual(regression sbp-full)
+#ZRE_3:Standardized Residual(regression ln(sbp)-stepwise)
+
+framnew <- na.omit(framham)
+attach(framnew)
+
+#install.packages("tidyr")
+#library(tidyr)
+#framnew<-data.frame(framham %>% drop_na())
+#attach(framnew)
+
+MALE<-as.factor(MALE)
+cig_cat<-as.factor(cig_cat)
+CIG<-as.factor(CIG)
+levels(MALE)[1]<-"female"
+levels(MALE)[2]<-"male"
+#Χωρίζω την ηλικία σε 3 εξα-ετίες για να χρησιμοποιηθεί πιο αποτελεσματικά στα plots #
+age<-cut(AGE,breaks=c(45,51,57,max(AGE)),labels=c("45-50","51-56","57-62"))
+age <- as.factor(age) 
+levels(age) <- c("45-50","51-56","57-62")
+
+edit(framnew)
+str(framnew)
+
+framnum<-data.frame(SBP,DBP,CHOL,log_chol,ZRE_1,ZRE_2,ZRE_3)
+attach(framnum)
+framcat<-data.frame(AGE,MALE,CIG,cig_cat)
+attach(framcat)
+                                     ##### ΠΡΩΤΟ ΕΡΩΤΗΜΑ ######
+
+# ΠΕΡΙΓΡΑΦΙΚΑ ΜΕΤΡΑ ΚΑΙ ΔΙΑΓΡΑΜΜΑΤΑ ΓΙΑ ΣΥΝΕΧΕΙΣ ΜΕΤΑΒΛΗΤΕΣ #
+
+#descriptive statistics in R
+#install.packages("pastecs")
+library(pastecs)
+framnum1<-data.frame(SBP,DBP,CHOL,log_chol)
+attach(framnum1)
+options(scipen=100)
+options(digits=2)
+stat.desc(framnum1, basic=F) #nbr.val=number of observations
+stat.desc(framnum1, desc=F)  #nbr.na=number of missing values
+summary(framnum)
+
+#συντελεστής μεταβλητότητας των ποσοτικών μεταβλητών (CV=s/x??).
+for (i in 1:7){
+  print(c(names(framnum)[i],sd(framnum[,i])/mean(framnum[,i]))) 
+}
+# Οι διακυμάνσεις των μεταβλητών είναι σχετικά μικρές γιατί CV<0.3 εκτός από των τριών κανονικοποιημένων καταλοίπων
+
+#install.packages("moments")
+library(moments)
+
+kurtosis(SBP) #λεπτόκυρτη
+skewness(SBP) #θετική(αριστερή) ασυμμετρία
+agostino.test(SBP) #Έχει λοξότητα η κατανομή της συστολικής πίεσης
+kurtosis(DBP)  #λεπτόκυρτη
+skewness(DBP) #θετική(αριστερή) ασυμμετρία
+agostino.test(DBP) #Έχει λοξότητα η κατανομή της διαστολικής πίεσης
+kurtosis(CHOL) #λεπτόκυρτη
+skewness(CHOL) #θετική(αριστερή) ασυμμετρία
+agostino.test(CHOL) #Έχει λοξότητα η κατανομή της χοληστερόλης
+kurtosis(log_chol) #λεπτόκυρτη
+skewness(log_chol) #αρνητική(δεξιά) ασυμμετρία
+agostino.test(log_chol) #Έχει λοξότητα η κατανομή του λογαρίθμου της χοληστερόλης
+kurtosis(ZRE_1) #λεπτόκυρτη
+skewness(ZRE_1) #θετική(αριστερή) ασυμμετρία
+agostino.test(ZRE_1)
+kurtosis(ZRE_2) #λεπτόκυρτη
+skewness(ZRE_2) #θετική(αριστερή) ασυμμετρία
+agostino.test(ZRE_2)
+kurtosis(ZRE_3) #λεπτόκυρτη
+skewness(ZRE_3) #αρνητική(δεξιά) ασυμμετρία
+agostino.test(ZRE_3) #και τα τρια είδη καταλοίπων εχουν λοξότητα
+
+
+#Κατασκευάζω QQ-plots και διεξάγω τον έλεγχο κανονικότητας του Lilliefors Test για κάθε ποσοτική μεταβλητή
+par(mfrow=c(3,3))
+qqnorm(SBP,main="Normal Q-Q Plot for SBP")
+qqline(SBP,col=2)  
+qqnorm(DBP,main="Normal Q-Q Plot for DBP")
+qqline(DBP,col=2)
+qqnorm(CHOL,main="Normal Q-Q Plot for CHOL")
+qqline(CHOL,col=2)
+qqnorm(log_chol,main="Normal Q-Q Plot for log_chol")
+qqline(log_chol,col=2)
+qqnorm(ZRE_1,main="Normal Q-Q Plot for ZRE_1")
+qqline(ZRE_1,col=2)
+qqnorm(ZRE_2,main="Normal Q-Q Plot for ZRE_2")
+qqline(ZRE_2,col=2)
+qqnorm(ZRE_3,main="Normal Q-Q Plot for ZRE_3")
+qqline(ZRE_3,col=2)
+
+"P-Values of Lilliefors Test for Normality" 
+#install.packages("nortest")
+library(nortest)
+for (i in 1:7){
+  print(c(names(framnum)[i],lillie.test(framnum[,i])$p.value))
+}
+# Απορρίπτω την κανονικότητα για όλες τις μεταβλητές εκτός από το ZRE_3
+
+# Για τα Ιστογράμματα, θα κάνω:
+par(mfrow=c(3,3))
+hist(SBP,col="grey",probability = TRUE)
+lines(density(SBP), col="blue", lwd=2) 
+lines(density(SBP, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(DBP,col="grey",probability = TRUE)
+lines(density(DBP), col="blue", lwd=2) 
+lines(density(DBP, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(CHOL,col="grey",probability = TRUE)
+lines(density(CHOL), col="blue", lwd=2) 
+lines(density(CHOL, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(log_chol,col="grey",probability = TRUE)
+lines(density(log_chol), col="blue", lwd=2) 
+lines(density(log_chol, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(ZRE_1,col="grey",probability = TRUE)
+lines(density(ZRE_1), col="blue", lwd=2) 
+lines(density(ZRE_1, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(ZRE_2,col="grey",probability = TRUE)
+lines(density(ZRE_2), col="blue", lwd=2) 
+lines(density(ZRE_2, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(ZRE_3,col="grey",probability = TRUE)
+lines(density(ZRE_3), col="blue", lwd=2) 
+lines(density(ZRE_3, adjust=2), lty="dotted", col="green", lwd=2) 
+
+# ΠΛΗΡΟΦΟΡΙΕΣ ΓΙΑ ΤΙΣ ΣΥΝΕΧΕΙΣ ΠΟΣΟΤΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ #
+
+# Κατά μία εκδοχή, η ΧΟΛΗΣΤΕΡΙΝΗ ή ΧΟΛΗΣΤΕΡΟΛΗ, όταν υπάρχει στο αίμα σε υπερβολικές τιμές (υπερχοληστερολαιμία) 
+# αποτελεί έναν από τους κύριους παράγοντες κινδύνου για την εμφάνιση καρδιαγγειακών ασθενειών, 
+# που μπορεί να οδηγήσουν σε καρδιακό ή εγκεφαλικό επεισόδιο.
+# Ασκεί μακροχρόνιες επιδράσεις στην υγεία της καρδιάς, καθώς ανά δεκαετία που περνάει αυξάνει κατά 39% τις πιθανότητες για καρδιοπάθεια.
+# Στην ηλικία των 55 ετών σχεδόν το 40% των εθελοντών της έρευνάς μας είχαν ήδη συμπληρώσει τουλάχιστον μία δεκαετία με επίπεδα χοληστερόλης υψηλότερα από τα φυσιολογικά.
+# Αυτο φαίνεται από τα παρακάτω διαγράμματά μας σε σχέση με την ηλικία.
+
+# Η αρτηριακή πίεση καταγράφεται με δύο αριθμούς, π.χ. 150/95.
+# Ο μεγαλύτερος αριθμός είναι η «συστολική» πίεση που είναι γνωστή ως «μεγάλη » πίεση και ο μικρότερος η «διαστολική» ή «μικρή» πίεση.
+# Συστολική είναι η πίεση που ασκείται στις αρτηρίες όταν η καρδιά συσπάται για να προωθήσει το αίμα μέσω των αρτηριών προς τα όργανα του σώματος και
+# διαστολική όταν η καρδιά χαλαρώνει για να δεχθεί νέο αίμα.
+# Η αρτηριακή πίεση εξαρτάται από τη δύναμη με την οποία η καρδιά ωθεί το αίμα και από την αντίσταση που προβάλλουν σ' αυτή την προ ώθηση οι μικρές αρτηρίες.
+# Στους νέους υπερτασικούς είναι συνήθως ισχυρότερη η δύναμη ώθησης του αίματος από την καρδιά,
+# ενώ στους μεγαλύτερους είναι αυξημένη η αντίσταση των αρτηριών στη ροή του αίματος. 
+# Η ιδανική αρτηριακή πίεση σε υγιείς ενήλικες είναι κάτω από 120 για τη συστολική και κάτω από 80 για τη διαστολική. 
+# Οποιαδήποτε τιμή αρτηριακής πίεσης άνω του 140 για τη συστολική και άνω του 90 για τη διαστολική θεωρείται υπέρταση. 
+
+# Μετά από το κάπνισμα ενός τσιγάρου η πίεση αυξάνεται περίπου κατά 10mmHg 
+# και παραμένει αυξημένη για περίπου 30 λεπτά ακόμη.
+# Καθώς μειώνεται η στάθμη της νικοτίνης, η πίεση αρχίζει να ελαττώνεται σταδιακά.
+# Βέβαια, αν καπνίζει κάποιος 10-20 τσιγάρα την ημέρα ή περισσότερο, η πίεση παραμένει συνεχώς σε υψηλά επίπεδα καθ’όλο το 24ωρο.
+# http://www.healthyliving.gr/2017/11/06/kapnisma-arthriakh-piesh-7/
+
+
+#install.packages("sm")
+#install.packages("vioplot")
+library(sm)
+library(vioplot) 
+
+# ΜΕ ΤΑ VIOPLOTS ΒΛΕΠΟΥΜΕ ΠΟΥ ΒΡΙΣΚΟΝΤΑΙ/ΣΥΓΚΕΝΤΡΩΝΟΝΤΑΙ ΟΙ ΤΙΜΕΣ ΤΩΝ ΠΟΣΟΤΙΚΩΝ ΜΕΤΑΒΛΗΤΩΝ #
+par(mfrow=c(2,2))
+vioplot(SBP,names="Systolic Blood Pressure")
+vioplot(DBP,names="Diastolic Blood Pressure")
+vioplot(CHOL,names="Cholesterol")
+vioplot(log_chol,names="Logarithm of Cholesterol") 
+
+
+                           # Για τις κατηγορικές μεταβλητές #
+
+
+# Για να πάρω τους πίνακες συχνοτήτων των κατηγορικών μου μεταβλητών 
+
+x1<-round(100*prop.table(table(CIG)),digits=2)
+x2<-round(100*prop.table(table(MALE)),digits=1)
+x3<-round(100*prop.table(table(cig_cat)),digits=0)
+x4<-round(100*prop.table(table(age)),digits=0)
+
+#ΔΙΑΓΡΑΜΜΑΤΑ ΠΙΤΑΣ ΓΙΑ ΤΙΣ ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ
+par(mfrow=c(1,1))
+
+pie(x1, label=paste( round(x1,3), '%', sep='') ,col=terrain.colors(13,alpha=0.5) ,main="Pie Chart for Number of Cigarettes per day",cex=0.7)
+legend('topright', fill=terrain.colors(13,alpha=0.5), legend=levels(CIG),cex=0.8)
+
+pie(x3, label=paste( round(x3,2), '%', sep='') ,col=terrain.colors(4,alpha=0.5) ,main="Pie Chart for each category of cigarettes",cex=0.8)
+legend('topright', fill=terrain.colors(4,alpha=0.5), legend=levels(cig_cat),cex=0.8)
+
+par(mfrow=c(1,2))
+pie(x2, label=paste( round(x2,2), '%', sep='') ,col=terrain.colors(2,alpha=0.5) ,main="Pie Chart for Gender",cex=0.8)
+legend('topright', fill=terrain.colors(2,alpha=0.5), legend=levels(MALE),cex=0.8)
+pie(x4, label=paste( round(x4,2), '%', sep='') ,col=terrain.colors(3,alpha=0.5) ,main="Pie Chart for Age",cex=1)
+legend('topright', fill=terrain.colors(3,alpha=0.5), legend=levels(age),cex=1)
+
+
+
+######### ΚΕΦΑΛΑΙΟ 3: ΣΧΕΣΕΙΣ ΜΕΤΑΒΛΗΤΩΝ ΑΝΑ ΔΥΟ ##########
+
+# a cross tabulation or contingency table of frequencies(πίνακες που έχουν τις παρατηρούμενες συχνότητες χωρίς τα missing)
+# ΠΙΝΑΚΕΣ ΣΥΝΑΦΕΙΑΣ ΓΙΑ ΤΙΣ ΔΙΑΚΡΙΤΕΣ(ΠΟΙΟΤΙΚΕΣ) ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ #
+
+# βαθμοί ελευθερίας = ο ελάχιστος αριθμός των τιμών των συχνοτήτων σε έναν πίνακα που πρέπει να γνωρίζω για να προσδιορίσω και τις υπόλοιπες τιμές του πίνακα
+crossA<-table(MALE,CIG)
+addmargins(crossA) # 12*1=12 βαθμοί ελευθερίας
+crossB<-table(age,CIG)
+addmargins(crossB) # 12*2=24 βαθμοί ελευθερίας
+crossC<-table(cig_cat,CIG)
+addmargins(crossC) # 12*3 =36 βαθμοί ελευθερίας
+crossD<-table(MALE,age)
+addmargins(crossD) # 2*1=2 βαθμοί ελευθερίας
+crossE<-table(age,cig_cat)
+addmargins(crossE) # 3*2=6 βαθμοί ελευθερίας
+crossF<-table(MALE,cig_cat)
+addmargins(crossF) # 3*1=3 βαθμοί ελευθερίας
+
+# Επειδή όμως δε μπορώ να συγκρίνω κατηγορίες μεταξύ τους που δεν είναι ισοπληθείς
+# το επόμενο βήμα είναι να συγκρίνω ποσοστά(CrossTable)
+#install.packages("gmodels")
+library(gmodels)
+CrossTable(CIG,MALE, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(CIG,age, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(CIG,cig_cat, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(MALE,age, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(age,cig_cat, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(MALE,cig_cat, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+
+
+                        #  ΔΙΑΓΡΑΜΜΑΤΑ ΓΙΑ ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ ΜΕΤΑΞΥ ΤΟΥΣ #
+
+par(mfrow=c(1,2))
+barplot(table(cig_cat,age),legend.text=T,col=terrain.colors(4)) # δεν καπνίζουν πολύ την τρίτη κατηγορία και προτιμάται η πρώτη
+title("Stacked Barplot of Cig_cat in groups of age")
+barplot(table(cig_cat,MALE),legend.text=T,col=terrain.colors(4)) # δεν καπνίζουν πολύ την τρίτη κατηγορία και προτιμάται η πρώτη
+title("Stacked Barplot of Cig_cat in each Gender")
+barplot(table(CIG,MALE),legend.text=T,col=terrain.colors(13)) # αθροίζοντας τις γυναίκες και τους άντρες που δεν καπνίζουν, παρατηρούμε ότι σχεδόν οι μισοί ασθενείς δεν καπνίζουν
+title("Stacked Barplot of Number of Cig in each Gender")
+barplot(table(CIG,age),legend.text=T,col=terrain.colors(13)) # πλειοψηφικά οι ασθενείς και από τις τρεις ηλικιακές ομάδες δεν καπνίζουν καθόλου και οι υπόλοιποι πολύ λίγο 
+title("Stacked Barplot of Number of Cig in groups of age")
+par(mfrow=c(1,1))
+barplot(table(MALE,CIG),legend.text=T,col=terrain.colors(4))
+title("Stacked Barplot of Genders in number of Cig per day")
+
+# TA P-VALUE ΤΟΥ X^2 ΕΛΕΓΧΟΥ ΑΝΕΞΑΡΤΗΣΙΑΣ
+chisq.test(CIG,MALE)$p.value # παρατηρούμε ότι ο αριθμός τσιγάρων την ημέρα διαφέρει μεταξύ των δύο φύλων
+chisq.test(CIG,age)$p.value # παρατηρούμε ότι ο αριθμός τσιγάρων την ημέρα διαφέρει μεταξύ των τριών ηλικιακών ομάδων
+chisq.test(CIG,cig_cat)$p.value # παρατηρούμε ότι ο αριθμός τσιγάρων την ημέρα διαφέρει μεταξύ των τεσσάρων κατηγοριών τσιγάρου
+chisq.test(MALE,age)$p.value # Με μια πρώτη ματιά δε φαίνεται να υπάρχει διαφορά στον αριθμό των δύο φύλων για τα τρία επίπεδα ηλικίας
+chisq.test(cig_cat,age)$p.value # παρατηρούμε ότι οι κατηγορίες των τσιγάρων διαφέρουν μεταξύ των τριών ηλικιακών ομάδων
+chisq.test(cig_cat,MALE)$p.value # παρατηρούμε ότι οι κατηγορίες των τσιγάρων διαφέρουν μεταξύ των δύο φύλων
+
+#install.packages("psych")
+par(mfrow=c(1,1))
+library(psych)
+pairs.panels(framnum) # ΓΡΑΦΗΜΑ ΠΟΥ ΔΕΙΧΝΕΙ ΚΑΙ ΤΙΣ ΣΥΣΧΕΤΙΣΕΙΣ ΤΩΝ ΠΟΣΟΤΙΚΩΝ ΜΕΤΑΒΛΗΤΩΝ ΜΕΤΑΞΥ ΤΟΥΣ
+
+# Όπως περιμέναμε, η συστολική και η διαστολική πίεση φαίνεται να έχουν μια αρκετά συνεπή σχέση.
+# Το ίδιο φαίνεται και για την διαστολική πίεση με το μηδενικό ποσοστό σφάλματος 1. 
+# Πολυ συνεπή σχέση φαίνεται να έχουν η συστολική πίεση με το μηδενικό ποσοστό σφάλματος 1
+# και η χοληστερόλη με το μηδενικό ποσοστό σφάλματος 2
+# και η χοληστερόλη με το μηδενικό ποσοστό σφάλματος 3
+# και το μηδενικό ποσοστό σφάλματος 2 με το μηδενικό ποσοστό σφάλματος 3
+
+
+#correlation of numeric variables#
+
+#install.packages("corrplot")
+
+# ΓΡΑΦΗΜΑΤΑ ΠΟΥ ΔΙΝΟΥΝ ΤΙΣ ΑΡΙΘΜΗΤΙΚΕΣ ΚΑΙ ΟΠΤΙΚΕΣ ΣΥΣΧΕΤΙΣΕΙΣ ΚΑΙ ΤΑ P-VALUES ΑΥΤΩΝ ΑΝΑΜΕΣΑ ΣΤΙΣ ΣΥΝΕΧΕΙΣ ΜΕΤΑΒΛΗΤΕΣ #
+# Ετσι, ελέγχουμε ποιές συσχετίσεις είναι στατιστικώς σημαντικές #
+
+library(corrplot)
+library(sjPlot)
+par(mfrow=c(1,1))
+sjt.corr(framnum ,corr.method = "pearson",show.p=TRUE,p.numeric = TRUE,fade.ns = TRUE,digits = 3,triangle = "lower",remove.spaces = TRUE)
+
+x <- cor(framnum)
+corrplot(x, type="upper", order="hclust")
+sjp.corr(framnum,corr.method = "pearson")
+
+
+# ΚΑΝΩ ΤΑ ΠΑΡΑΚΑΤΩ ΓΡΑΦΗΜΑΤΑ ΓΙΑ ΝΑ ΕΛΕΓΞΩ ΑΝ Η ΣΧΕΣΗ ΠΟΥ ΒΛΕΠΩ ΣΤΑ pairs.panels # 
+# ΕΙΝΑΙ ΙΣΟΚΑΤΑΝΕΜΗΜΕΝΗ ΑΝΑΛΟΓΑ ΜΕ ΤΟ ΦΥΛΟ ΚΑΙ ΤΗΝ ΗΛΙΚΙΑ #
+
+# Plot for each Gender #
+
+par(mfrow=c(1,2))
+mycolors1<-c("red","dark green")
+
+plot(SBP,DBP,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Diastolic versus Systolic Blood Pressure for each gender")
+
+plot(ZRE_1,DBP,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Diastolic Blood Pressure versus Zero Rate Error 1 for each gender")
+
+plot(ZRE_1,SBP,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Systolic Blood Pressure versus Zero Rate Error 1 for each gender")
+
+plot(ZRE_2,CHOL,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Cholesterol versus Zero Rate Error 2 for each gender")
+
+plot(ZRE_3,CHOL,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Cholesterol versus Zero Rate Error 3 for each gender")
+
+plot(ZRE_2,ZRE_3,col=mycolors1)
+with(framnum,legend('topleft',legend=levels(MALE),col=mycolors1,pch=1,title='GENDER'))
+title("Zero Rate Error 3 versus Zero Rate Error 2 for each gender")
+
+# Plot for each Age #
+par(mfrow=c(1,2))
+mycolors2<-c("red","dark green","yellow")
+
+plot(SBP,DBP,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Diastolic versus Systolic Blood Pressure for each age")
+
+plot(ZRE_1,DBP,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Diastolic Blood Pressure versus Zero Rate Error 1 for each age")
+
+plot(ZRE_1,SBP,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Systolic Blood Pressure versus Zero Rate Error 1 for each age")
+
+plot(ZRE_2,CHOL,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Cholesterol versus Zero Rate Error 2 for each age")
+
+plot(ZRE_3,CHOL,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Cholesterol versus Zero Rate Error 3 for each age")
+
+plot(ZRE_2,ZRE_3,col=mycolors2,pch=19)
+with(framnum,legend('topleft',legend=levels(age),col=mycolors2,pch=1,title='AGE'))
+title("Zero Rate Error 3 versus Zero Rate Error 2 for each age")
+
+
+
+                                    # Κατηγορικές με Συνεχείς #
+
+# boxplots # Κάνω τα Boxplots για να δω αν υπάρχει συσχέτιση μεταξύ μιας ποσοτικής και μιας κατηγορικής μεταβλητής 
+
+par(mfrow=c(1,3))
+boxplot(split(SBP,age),main="Systolic Blood Pressure by Age",col=c("red","dark green","yellow"))
+boxplot(split(DBP,age),main="Diastolic Blood Pressure by Age",col=c("red","dark green","yellow"))
+boxplot(split(CHOL,age),main="Cholesterol by Age",col=c("red","dark green","yellow"))
+# Φαίνεται ότι οι ηλικίες 45-50 είναι λίγο μεγαλύτερες σε όλα τα χαρακτηριστικά 
+# Μια σημαντική παρατήρηση είναι ότι η χοληστερόλη σε ηλικίες 51-56 είναι λίγο πιο αυξημένη από τις άλλες ηλικιακές ομάδες
+# Επειδή όλες αυτοί οι υπερτασικοί ενήλικες είναι πολύ κοντά μεταξύ τους ηλικιακά 
+# είναι εμφανές ότι οι ηλικίες 45-50 εμφανίζουν μια προ-υπέρταση(τιμές περιπου στο 140) κάτι που είναι λογικό, λόγω του ότι είναι λίγο μικρότεροι
+# Γενικά, γνωρίζουμε ότι όσο αυξάνεται η ηλικία, παρατηρούμε μια αύξηση στην Χοληστερόλη, κάτι το οποίο δε φαίνεται ξεκάθαρα από το διάγραμμά μας
+# Δηλαδή, δεν υπάρχει αισθητή διαφορά μεταξύ των τριών ηλικιακών γκρουπ γιατί οι ηλικίες αυτές είναι πολύ κοντά μεταξύ τους.
+
+boxplot(split(SBP,MALE),main="Systolic Blood Pressure by Gender",col=c("red","dark green"))
+boxplot(split(DBP,MALE),main="Diastolic Blood Pressure by Gender",col=c("red","dark green"))
+boxplot(split(CHOL,MALE),main="Cholesterol by Gender",col=c("red","dark green"))
+# Για τα δύο φύλα , είναι σχεδόν τα ίδια χαρακτηριστικά
+
+boxplot(split(SBP,CIG),main="Systolic Blood Pressure by Number of cigarettes per day",col="red")
+boxplot(split(DBP,CIG),main="Diastolic Blood Pressure by Number of cigarettes per day",col="dark green")
+boxplot(split(CHOL,CIG),main="Cholesterol by Number of cigarettes per day",col="yellow")
+# Είναι εμφανές ότι η χοληστερόλη δεν επηρεάζεται αισθητά από τον αριθμό τσιγάρων που θα καπνίσει ο ασθενής την μια μέρα.
+# Όμως, η συστολική και διαστολική πίεση είναι πολύ αυξημένη όταν ο ασθενής κάνει 45 τσιγάρα τη μέρα.
+# Αυτό βέβαια δε μπορεί να είναι αντιπροσωπευτικό διότι παρατηρούμε ότι όταν κάνει 50 ή 60 τσιγάρα, η πίεση είναι σε χαμηλότερα επίπεδα απ'ότι στα 45.
+# Αυτό ίσως συνέβη γιατί, παρατηρώντας τον πίνακα συχνοτήτων, βλέπουμε ότι μόνο 0.14% καπνίζουν 45 τσιγάρα την ημέρα και αυτοί οι συγκεκριμένοι θα είχαν υψηλή πίεση.
+
+boxplot(split(SBP,cig_cat),main="Systolic Blood Pressure by Category of cigarettes",col="red")
+boxplot(split(DBP,cig_cat),main="Diastolic Blood Pressure by Category of cigarettes",col="dark green")
+boxplot(split(CHOL,cig_cat),main="Cholesterol by Category of cigarettes",col="yellow")
+# η χοληστερόλη είναι στα ίδια επίπεδα ανεξάρτητα από την κατηγορία καπνιστή(έχει να κάνει από το είδος των τσιγάρων)
+# η πίεση(συστολική και διαστολική) είναι σε λίγο υψηλότερα επίπεδα στην κατηγορία 0 και 3,που σημαίνει ότι αυτά τα τσιγάρα θα περιέχουν περισσότερη νικοτίνη από τα υπόλοιπα.
+
+library(nortest)
+                    # ΤΕΣΤ ΕΛΕΓΧΟΥ ΚΑΝΟΝΙΚΟΤΗΤΑΣ #
+
+for (i in 1:3){
+  print(lillie.test(split(SBP,age)[[i]])$p.value) 
+}
+for (i in 1:3){
+  print(lillie.test(split(DBP,age)[[i]])$p.value) 
+}
+for (i in 1:3){
+  print(lillie.test(split(CHOL,age)[[i]])$p.value) 
+}
+for (i in 1:2){
+  print(lillie.test(split(SBP,MALE)[[i]])$p.value)
+}
+for (i in 1:2){
+  print(lillie.test(split(DBP,MALE)[[i]])$p.value)
+}
+for (i in 1:2){
+  print(lillie.test(split(CHOL,MALE)[[i]])$p.value)
+}
+for (i in 1:13){
+  print(lillie.test(split(SBP,CIG)[[i]])$p.value)
+}
+for (i in 1:13){
+  print(lillie.test(split(DBP,CIG)[[i]])$p.value)
+}
+for (i in 1:13){
+  print(lillie.test(split(CHOL,CIG)[[i]])$p.value)
+}
+for (i in 1:4){
+  print(lillie.test(split(SBP,cig_cat)[[i]])$p.value)
+}
+for (i in 1:4){
+  print(lillie.test(split(DBP,cig_cat)[[i]])$p.value)
+}
+for (i in 1:4){
+  print(lillie.test(split(CHOL,cig_cat)[[i]])$p.value)
+}
+
+                  # ΣΥΣΧΕΤΙΣΕΙΣ ΜΕΤΑΞΥ ΔΥΟ ΠΑΡΑΓΟΝΤΩΝ ΚΑΙ ΜΙΑΣ ΣΥΝΕΧΟΥΣ ΜΕΤΑΒΛΗΤΗΣ #
+
+#install.packages("stats")
+library(stats)
+
+par(mfrow=c(1,1))
+interaction.plot(age, MALE, SBP,col=c("dark red","dark green"),type="b",lwd=2)
+# Παρατηρούμε ότι σε όλα τα ηλικιακά γκρουπ, οι γυναίκες έχουν υψηλότερα επίπεδα συστολικής πίεσης από τους άνδρες (πιο υπερτασικές)
+interaction.plot(age, MALE, DBP,col=c("dark red","dark green"),type="b",lwd=2)
+# Παρατηρούμε ότι παρόλο που οι γυναίκες είναι πάνω από τους άνδρες και στα τρια ηλικιακά επίπεδα, η διαστολική πίεση των γυναικών αυξάνεται όσο περνάνε τα χρόνια,
+# ενώ των ανδρών γίνεται μικρότερη σε σχέση με τα υπόλοιπα δύο ηλικιακά επίπεδα, φθάνοντας 62 ετών.
+interaction.plot(age,MALE,CHOL,col=c("dark red","dark green"),type="b",lwd=2)
+# το γράφημα αυτό δείχνει πάλι αυτό που είχαμε παρατηρήσει από τα boxplots μας, ότι τα επίπεδα χοληστερόλης στη γυναίκα είναι υψηλότερα σε σχέση με του άντρα
+# όμως, παρόλο που στον άντρα η χοληστερόλη μειώνεται όσο περνάνε τα χρόνια (δεν είναι αναμενόμενο, φταίει το δείγμα)
+# στη γυναίκα κορυφώνεται σε ηλικίες 51-56 και ξανακατεβαίνει σε ηλικίες 57-62, ποτέ όμως δε φτάνει τα χαμηλά επίπεδα του ηλικιακού γκρουπ 45-50
+interaction.plot(age,MALE,log_chol,col=c("dark red","dark green"),type="b",lwd=2)
+# Φαίνεται ακριβώς το ίδιο με το προηγούμενο γράφημα, αλλά αλλάζει η κλίμακα.
+interaction.plot(age,MALE,ZRE_1,col=c("dark red","dark green"),type="b",lwd=2)
+# To ΖΡΕ_1 παθαίνει το ίδιο είτε άντρας είτε γυναίκα περνώντας τις τρεις ηλικιακές ομάδες αλλά πάντα τα επίπεδα της γυναίκας είναι υψηλότερα.
+interaction.plot(age,MALE,ZRE_2,col=c("dark red","dark green"),type="b",lwd=2)
+# αυτό το γράφημα υποδηλώνει μια δυσνόητη σχέση μεταξύ ZRE_2 και φύλου ανάμεσα στις τρεις ηλικιακές ομάδες.
+interaction.plot(age,MALE,ZRE_3,col=c("dark red","dark green"),type="b",lwd=2)
+# Το ίδιο παράξενο συμβαίνει και εδώ με το ZRE_3
+
+
+######### ΚΕΦΑΛΑΙΟ 4: ΠΡΟΒΛΕΠΤΙΚΑ Ή ΕΡΜΗΝΕΥΤΙΚΑ ΜΟΝΤΕΛΑ ##########
+
+                          ##### ΔΕΥΤΕΡΟ ΕΡΩΤΗΜΑ ######
+#SBP #DBP
+par(mfrow=c(1,2))
+plot(density(SBP))
+plot(density(DBP))
+
+# ΕΛΕΓΧΟΣ ΣΥΣΧΕΤΙΣΗΣ ΜΕΤΑΞΥ ΣΥΣΤΟΛΙΚΗΣ ΚΑΙ ΔΙΑΣΤΟΛΙΚΗΣ ΠΙΕΣΗΣ #
+
+cor(SBP, DBP, method = c("pearson"))
+round(cor(SBP, DBP, method = c("pearson"))) # Έχουν πολύ μεγάλη γραμμική συσχέτιση
+# Αυτό φαίνεται και κάνοντας το τεστ συσχέτισης. Αυτό μετράει τον βαθμό της γραμμικής εξάρτησης ανάμεσα στη συστολική και διαστολική πίεση.
+cor.test(SBP, DBP, method=c("pearson")) 
+# Εδώ,το p-value<<0.001 άρα απορρίπτω τη μηδενική υπόθεση,άρα ο συντελεστής συσχέτισης δεν είναι ίσος με 0 και η συστολική με τη διαστολική πίεση συσχετίζονται γραμμικά.
+
+# Χρησιμοποιώντας το παρακάτω γράφημα και εφαρμόζοντας μια γραμμή ενός γραμμικού μοντέλου με την SBP ως επεξηγηματική μεταβλητή, βγάζουμε το ίδιο συμπέρασμα
+#install.packages("ggpubr")
+library(ggpubr)
+par(mfrow=c(1,2))
+plot(SBP, DBP,xlab="Συστολική πίεση",ylab="Διαστολική πίεση",main="Correlation cor= 0.79 between Systolic and Diastolic pressure",cex.axis=1.5,pch=19,col="dark green",cex.lab=1.1)
+abline(lm(DBP~SBP),col=2,lwd=2) 
+
+plot(SBP, DBP,xlab="Συστολική πίεση (Αφαιρώντας τη σταθερά από το μοντέλο)",ylab="Διαστολική πίεση",main="Correlation cor= 0.79 between Systolic and Diastolic pressure",cex.axis=1.5,pch=19,col="dark green",cex.lab=1.1)
+abline(lm(DBP~SBP-1),col=2,lwd=2) 
+
+summary(lm(DBP~SBP)) # προσαρμογή 62.6 %
+summary(lm(DBP~SBP-1)) # προσαρμογή 98.7%
+
+#Covariance between sustolikhs kai diastolikhs pieshs->poso allazoun mazi#
+
+round(cov(framnew),2) # το στοιχείο (2,3) μας δίνει το Covariance της συστολικής με τη διαστολική πίεση. Αυτό δείχνει την ταυτόχρονη αλλαγή των δύο μεταβλητών
+# Φαίνεται ότι το covariance είναι αρκετά μεγάλο
+
+library(sjPlot)
+sjt.corr(framnum ,corr.method = "pearson",show.p=TRUE,p.numeric = TRUE,fade.ns = TRUE,digits = 3,triangle = "lower",remove.spaces = TRUE)
+sjp.corr(framnum,corr.method = "pearson")
+
+###### ΤΡΙΤΟ ΕΡΩΤΗΜΑ #######
+
+# Ο αριθμός τσιγάρων σχετίζεται με τη συστολική πίεση του ασθενή??
+
+chisq.test(CIG,SBP)$p.value
+round(100*prop.table(table(CIG)),digits=1)
+# Βλέπουμε ότι οι μισοί από τους υπερτασικούς που έχουμε εξετάσει στην έρευνά μας δεν καπνίζουν κανένα τσιγάρο την ημέρα
+# Οπότε η υπέρταση αυτών δεν εξαρτάται σίγουρα από τον αριθμό τσιγάρων.
+# Θα μπορούσαμε λοιπόν να αφαιρέσουμε από το μοντέλο που θα δημιουργήσουμε αυτούς και να κρατήσουμε τους υπόλοιπους ασθενείς 
+# των οποίων η υπέρταση λογικά εξαρτάται από τον αριθμό τσιγάρων την ημέρα.
+
+
+CIG.n<-as.numeric(framnew$CIG)
+my_data = subset(framnew, CIG.n > 0)
+
+# Άρα, παίρνουμε αυτές τις τιμές για τον αριθμό τσιγάρων 
+
+my_data$CIG<-as.factor(my_data$CIG)
+mdl<-lm(my_data$SBP~my_data$CIG,data=my_data) 
+summary(mdl)
+par(mfrow=c(1,1))
+plot(x = mdl$fitted, y = my_data$SBP, xlab = "Fitted SBP", ylab = "Observed SBP",font=2,main="Real vs Predicted SBP",pch=19,col="dark green")
+abline(lm(my_data$SBP ~ mdl$fitted), col="red",lwd=2) # Η δύναμη αυτής της σχέσης είναι πολύ μικρή
+
+
+plot(my_data$SBP~my_data$CIG,col="grey",xlab="Number of Cigarettes",ylab="Systolic Blood Pressure",main="Systolic Blood Pressure in each group of Cigarettes",pch=19)
+#install.packages("ggpubr")
+library(ggpubr)
+ggboxplot(my_data, x = "CIG", y = "SBP", 
+          color = "CIG", palette = rainbow(12),
+          ylab = "Systolic Blood Pressure", xlab = "Number of Cigarettes")
+
+#install.packages("heplots")
+library(heplots) 
+# δίνει το ίδιο αποτέλεσμα
+model.aov <- aov(my_data$SBP ~ my_data$CIG, data = my_data)
+summary(model.aov) 
+# Αφού το p-value είναι μικρότερο από το επίπεδο σημαντικότητας 0.05, μπορούμε να συμπεράνουμε ότι
+# υπάρχουν στατιστικώς σημαντικές διαφορές μεταξύ του αριθμού των τσιγάρων που κάνει ο ασθενής την ημέρα.
+
+res.aov<-model.aov$residuals
+qqnorm(res.aov)
+qqline(res.aov,col="red")
+library(nortest)
+lillie.test(res.aov)$p.value #δεν είναι κανονικά
+
+#We want to know if there is any significant difference between the average SBP of patients in the 12 groups of cigarettes.
+kruskal.test(my_data$SBP ~ my_data$CIG, data =my_data)
+#As the p-value is more than the significance level 0.05,
+#we can conclude that there aren't significant differences between the groups of number of cigarettes.
+
+library(car)
+# με το pairwise test ελέγχω 
+pairwise.t.test(my_data$SBP,my_data$CIG,p.adjust.method = "BH", pool.sd = FALSE)
+#δεν υπάρχει στατιστικώς σημαντική διαφορά μεταξύ του αριθμού των τσιγάρων(p>0.05)
+
+###### ΤΕΤΑΡΤΟ ΕΡΩΤΗΜΑ #######
+
+# τα λιπίδια στο αίμα που περιλαμβάνουν τη χοληστερόλη και τα τριγλυκερίδια, 
+# μπορεί να βοηθούν στην αναγνώριση των ατόμων εκείνων που θα προσβληθούν από ψηλή πίεση.
+# Για τον έλεγχο της χοληστερόλης, αρκεί μια επανάληψη της μέτρησης κάθε 5 χρόνια(γι'αυτό χωρίζω την ηλικία σε εξαετίες)
+# Η υψηλή πίεση του αίματος (υπέρταση) και η υψηλή χοληστερόλη συνδέονται στενά.
+# Όταν οι αρτηρίες σκληραίνουν και μειώνονται με τη χοληστερόλη η πλάκα και το ασβέστιο,
+# η καρδιά πρέπει να «στραγγίσει» για να αντλεί αίμα. Ως αποτέλεσμα, η αρτηριακή πίεση γίνεται ασυνήθιστα υψηλή. 
+# Από τα παραπάνω και από τις συσχετίσεις, οι οποίες μας δίνουν κάποιες συσχετίσεις υποθέτουμε ότι
+# πιο πιθανό είναι να καταλήξουμε στο μοντέλο στο οποίο η χοληστερόλη θα συνδέεται με την πίεση(Συστολική-Διαστολική) και με το φύλο.
+
+par(mfrow=c(1,2))
+
+h1<-hist(CHOL, col="grey", xlab="Cholesterol",  main="Histogram with Normal Curve") 
+xfit1<-seq(min(CHOL),max(CHOL),length=40) 
+yfit1<-dnorm(xfit1,mean=mean(CHOL),sd=sd(CHOL)) 
+yfit1 <- yfit1*diff(h1$mids[1:2])*length(CHOL) 
+lines(xfit1, yfit1, col="blue", lwd=2)
+
+h2<-hist(log_chol, col="grey", xlab="Logarithm of Cholesterol",  main="Histogram with Normal Curve") 
+xfit2<-seq(min(log_chol),max(log_chol),length=40) 
+yfit2<-dnorm(xfit2,mean=mean(log_chol),sd=sd(log_chol)) 
+yfit2 <- yfit2*diff(h2$mids[1:2])*length(log_chol) 
+lines(xfit2, yfit2, col="blue", lwd=2)
+
+#install.packages("corrplot")
+library(corrplot)
+par(mfrow=c(1,1))
+par(mar=c(6,5,8,4))
+corrplot(cor(framnum),main="correlations between continuous variables",method="ellipse")
+round(cor(framnum,method = "pearson"),2) #correlation between continuous variables
+
+levels(MALE)[1]<-0
+levels(MALE)[2]<-1
+
+model1<-lm(CHOL~age+SBP+DBP+cig_cat+CIG+MALE+ZRE_1+ZRE_2+ZRE_3,data=framnew)
+model2<-lm(log_chol~age+SBP+DBP+cig_cat+CIG+MALE+ZRE_1+ZRE_2+ZRE_3,data=framnew)
+
+#με το CHOL
+mfull<-model1
+mnull<-lm(CHOL~1,data = framnew)
+step(mnull,scope=list(lower=mnull,upper=mfull),direction = "forward")
+
+#με το log_chol
+mfull1<-model2
+mnull1<-lm(log_chol~1,data = framnew)
+step(mnull1,scope=list(lower=mnull1,upper=mfull1),direction = "forward")
+
+#install.packages("olsrr")
+library(olsrr)
+ols_step_forward(model2) #όλα μέσα εκτός από την sbp και την chol
+
+model.logchol<-lm(log_chol ~ ZRE_3+MALE+DBP+age,data=framnew) #η συστολική πίεση περιλαμβάνεται στα standardized residual του ln(SBP)
+summary(model.logchol)
+exp(coef(model.logchol))
+par(mfrow=c(1,1))
+qqnorm(model.logchol$resid)
+qqline(model.logchol$resid,col="red")
+
+min(DBP)
+# Για να δώσουμε καλύτερη ερμηνεία στις παραμέτρους και ειδικά στη σταθερά
+model.logchol1<-lm(log_chol ~ ZRE_3+MALE+I(DBP-50)+age,data=framnew)
+summary(model.logchol1)
+exp(coef(model.logchol1))
+
+# ΕΡΜΗΝΕΙΑ ΠΑΡΑΜΕΤΡΩΝ : 
+# intercept= στις γυναίκες, όταν τα κατάλοιπα της συστολικής πίεσης είναι μηδενικά και η διαστολική πίεση είναι 50, τότε η χοληστερόλη είναι περίπου 225.
+# ZRE_3= για κάθε μία μονάδα που αυξάνονται τα κατάλοιπα της συστολικής πίεσης, η χοληστερόλη και στα δύο φύλα αυξάνεται κατά 21% περίπου.
+# I(DBP-50)=για κάθε μία μονάδα που αυξάνεται η διαστολική πίεση, η χοληστερόλη και στα δύο φύλα αυξάνεται κατά 1% περίπου.
+
+################ ΣΥΜΠΕΡΑΣΜΑΤΑ ΚΑΙ ΣΥΖΗΤΗΣΗ #################
+
+#install.packages("neuralnet")
+library(neuralnet)
+library(MASS)
+DataFrame<-data.frame(log_chol,CHOL,MALE,DBP,ZRE_2,ZRE_3,age)
+attach(DataFrame)
+
+#Θα βοηθηθούμε από το neural net
+nn1<-neuralnet(CHOL~MALE+DBP+ZRE_2,data=framnew,hidden=2,err.fct = "sse",linear.output = T)
+plot(nn1)
+nn1$weights
+nn2<-neuralnet(log_chol~MALE+DBP+ZRE_3,data=framnew,hidden=2,err.fct = "sse",linear.output = T)
+plot(nn2)
+nn2$weights
+#Από το neuralnet φαίνεται ότι είναι πολύ καλύτερο το μοντέλο με το log_chol γιατί είναι πιο κανονικό.

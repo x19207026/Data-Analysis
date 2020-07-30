@@ -1,0 +1,1052 @@
+bikenew<-read.csv("bike_21.csv",header=TRUE,sep=";",dec=",")
+library(stats)
+attach(bikenew)
+bikenew<-na.omit(bikenew)
+bikenew<-bikenew[-1]
+
+
+########## ΑΡΧΙΚΟΠΟΙΗΣΗ ###########
+
+# Converting the normalized temperature,feeling temperature,humidity and windspeed:
+
+temp<-41*temp
+atemp<-50*atemp
+hum<-100*hum
+windspeed<-67*windspeed
+
+holiday<-as.factor(holiday) # 1: διακοπές, 0: όχι διακοπές
+levels(holiday)<-c("no","yes")
+weekday<-as.factor(weekday)  # 0: Δευτέρα, 1: Τρίτη ..., 6 : Κυριακή
+levels(weekday)<-c("Monday","Tuesday","Thirsday","Wednesday","Friday","Saturday","Sunday")
+workingday<-as.factor(workingday)  # 1: ούτε ΣΚ ούτε διακοπές, 0: αλλιώς 
+levels(workingday)<-c("no","yes")
+weathersit<-as.factor(weathersit) 
+# 1:	Καθαρός ουρανός, Λίγα σύννεφα, Τοπικά συννεφιασμένος, Τοπικά συννεφιασμένος
+# 2:	Ομίχλη και σύννεφα, Ομίχλη και διάσπαρτα σύννεφα, Ομίχλη και λίγα σύννεφα, Ομίχλη
+# 3:	Ελαφρύ χιόνι, Ελαφριά βροχή, Καταιγίδα και διάσπαρτα σύννεφα, Ελαφριά βροχή και διάσπαρτα σύννεφα
+levels(weathersit)<-c("Clear and Few clouds","Mist and Clouds","Rain and Snow")
+yr<-as.factor(yr)
+levels(yr)<-c("2011","2012")
+
+library(Hmisc)
+#Xωρίζω την ώρα σε 4ωρα
+hour<-cut(hr,breaks=c(0,4,8,12,16,20,max(hr)),labels=c("0π.μ.-4π.μ.","4π.μ.-8π.μ.","8π.μ.-12μ.μ.","12μ.μ.-16μ.μ.","16μ.μ.-20μ.μ.","20μ.μ.-24μ.μ."))
+hour<- as.factor(hour) 
+levels(hour) <- c("0π.μ.-4π.μ.","4π.μ.-8π.μ.","8π.μ.-12μ.μ.","12μ.μ.-16μ.μ.","16μ.μ.-20μ.μ.","20μ.μ.-24μ.μ.")
+
+season<-cut(mnth,breaks = c(0,3,6,9,max(mnth)),labels = c("Winter","Spring","Summer","Autumn"))
+season<-as.factor(season)
+mnth<-as.factor(mnth)
+levels(mnth)<-c("January","February","March","April","May","June","July","August","September","October","November","December")
+  
+str(bikenew)
+
+# Φτιάχνω την ημερομηνία να μου δείχνει το τρίμηνο
+library(zoo)
+Date2period <- function(x, period = 3){
+  ym <- as.yearmon(x)
+  paste("T",((cycle(ym) - 1) %/% period + 1 ))
+}
+
+date.trim<-Date2period(dteday) 
+date.trim<-as.factor(date.trim)
+
+
+############# ΠΕΡΙΓΡΑΦΙΚΑ ΜΕΤΡΑ ΓΙΑ ΤΙΣ ΣΥΝΕΧΕΙΣ ΜΕΤΑΒΛΗΤΕΣ ############
+
+num.only<-data.frame(temp,atemp,hum,windspeed,casual,registered,cnt)
+attach(num.only)
+
+options(scipen = 100,digits = 2 )
+summary(num.only)
+
+library(pastecs)
+stat.desc(num.only, basic=F) #nbr.val=number of observations
+stat.desc(num.only, desc=F)  #nbr.na=number of missing values
+
+#συντελεστής μεταβλητότητας των ποσοτικών μεταβλητών (CV=s/mean).
+for (i in 1:7){
+  print(c(names(num.only)[i],sd(num.only[,i])/mean(num.only[,i]))) 
+}
+# βλέποντάς τα ως ποσοστά φαίνεται ότι, εκτός από την υγρασία, την θερμοκρασία και αυτήν που αισθάνεται το ανθρώπινο σώμα, οι διακυμάνσεις των μεταβλητών είναι μεγάλες(>60%)
+
+library(moments)
+# Kurtosis refers to how much of the data is in the tails and the center.
+
+kurtosis(temp) # <3 αρνητική κύρτωση ,πλατύκυρτη
+skewness(temp) # συμμετρική
+kurtosis(atemp) # <3 αρνητική κύρτωση ,πλατύκυρτη
+skewness(atemp) # συμμετρική
+kurtosis(hum) # <3 αρνητική κύρτωση ,πλατύκυρτη
+skewness(hum) # αρνητική ασυμμετρία
+kurtosis(windspeed) # >3 θετική κύρτωση ,λεπτόκυρτη
+skewness(windspeed) # θετική ασυμμετρία
+kurtosis(casual) # >3 θετική κύρτωση ,λεπτόκυρτη
+skewness(casual) # θετική ασυμμετρία
+kurtosis(registered) # >3 θετική κύρτωση ,λεπτόκυρτη
+skewness(registered) # θετική ασυμμετρία
+kurtosis(cnt) # >3 θετική κύρτωση ,λεπτόκυρτη
+skewness(cnt) # θετική ασυμμετρία
+
+#Κατασκευάζω QQ-plots και διεξάγω τον έλεγχο κανονικότητας του Lilliefors Test για κάθε ποσοτική μεταβλητή
+par(mfrow=c(3,3))
+qqnorm(temp,main="Normal Q-Q Plot for Temperature")
+qqline(temp,col=2)  
+qqnorm(atemp,main="Normal Q-Q Plot for Feeling Temperature")
+qqline(atemp,col=2)
+qqnorm(hum,main="Normal Q-Q Plot for Humidity")
+qqline(hum,col=2)
+qqnorm(windspeed,main="Normal Q-Q Plot for Speed of wind")
+qqline(windspeed,col=2)
+qqnorm(casual,main="Normal Q-Q Plot for Casual users")
+qqline(casual,col=2)
+qqnorm(registered,main="Normal Q-Q Plot for Registered users")
+qqline(registered,col=2)
+qqnorm(cnt,main="Normal Q-Q Plot for Total rental bikes")
+qqline(cnt,col=2)
+
+"P-Values of Lilliefors Test for Normality" 
+library(nortest)
+for (i in 1:7){
+  print(c(names(num.only)[i],lillie.test(num.only[,i])$p.value))
+} # απορρίπτω την κανονικότητα για όλες τις μεταβλητές
+
+# Για τα Ιστογράμματα, θα κάνω:
+par(mfrow=c(3,3))
+hist(temp,col="grey",probability = TRUE)
+lines(density(temp), col="blue", lwd=2) 
+lines(density(temp, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(atemp,col="grey",probability = TRUE)
+lines(density(atemp), col="blue", lwd=2) 
+lines(density(atemp, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(hum,col="grey",probability = TRUE)
+lines(density(hum), col="blue", lwd=2) 
+lines(density(hum, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(windspeed,col="grey",probability = TRUE)
+lines(density(windspeed), col="blue", lwd=2) 
+lines(density(windspeed, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(casual,col="grey",probability = TRUE)
+lines(density(casual), col="blue", lwd=2) 
+lines(density(casual, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(registered,col="grey",probability = TRUE)
+lines(density(registered), col="blue", lwd=2) 
+lines(density(registered, adjust=2), lty="dotted", col="green", lwd=2) 
+hist(cnt,col="grey",probability = TRUE)
+lines(density(cnt), col="blue", lwd=2) 
+lines(density(cnt, adjust=2), lty="dotted", col="green", lwd=2) 
+
+
+############## ΜΕΤΑΣΧΗΜΑΤΙΣΜΟΙ ΓΙΑ ΚΑΝΟΝΙΚΟΤΗΤΑ ΠΟΣΟΤΙΚΩΝ ###########
+
+lillie.test(log(temp))$p.value
+lillie.test(1/temp)$p.value
+lillie.test(1/(temp^2))$p.value
+lillie.test(1/sqrt(temp))$p.value
+lillie.test(sqrt(temp))$p.value
+lillie.test(temp^(1/3))$p.value
+lillie.test(temp^2)$p.value
+lillie.test(((temp^2)-1)/2)$p.value # box-cox transformation
+lillie.test(((temp^(0.6)-1)/(0.6)))$p.value # box-cox transformation
+
+lillie.test(log(atemp))$p.value
+lillie.test(1/atemp)$p.value
+lillie.test(1/(atemp^2))$p.value
+lillie.test(1/sqrt(atemp))$p.value
+lillie.test(sqrt(atemp))$p.value
+lillie.test(atemp^(1/3))$p.value
+lillie.test(atemp^2)$p.value
+lillie.test(((atemp^2)-1)/2)$p.value # box-cox transformation
+
+lillie.test(sqrt(hum))$p.value
+lillie.test(hum^(1/3))$p.value
+lillie.test(hum^2)$p.value
+lillie.test(((hum^2)-1)/2)$p.value # box-cox transformation
+
+lillie.test(sqrt(windspeed))$p.value
+lillie.test(windspeed^(1/3))$p.value
+lillie.test(windspeed^2)$p.value
+lillie.test(((windspeed^2)-1)/2)$p.value # box-cox transformation
+
+lillie.test(sqrt(casual))$p.value
+lillie.test(casual^(1/3))$p.value
+lillie.test(casual^2)$p.value
+lillie.test(((casual^2)-1)/2)$p.value # box-cox transformation
+
+lillie.test(sqrt(registered))$p.value
+lillie.test(registered^(1/3))$p.value
+lillie.test(registered^2)$p.value
+lillie.test(((registered^2)-1)/2)$p.value # box-cox transformation
+
+lillie.test(log(cnt))$p.value
+lillie.test(1/cnt)$p.value
+lillie.test(1/(cnt^2))$p.value
+lillie.test(1/sqrt(cnt))$p.value
+lillie.test(sqrt(cnt))$p.value
+lillie.test(cnt^(1/3))$p.value
+lillie.test(cnt^2)$p.value
+lillie.test(((cnt^2)-1)/2)$p.value # box-cox transformation
+
+# "Let the data decide" #
+
+# ΜΕ ΤΑ VIOPLOTS ΒΛΕΠΟΥΜΕ ΠΟΥ ΒΡΙΣΚΟΝΤΑΙ/ΣΥΓΚΕΝΤΡΩΝΟΝΤΑΙ ΟΙ ΤΙΜΕΣ ΤΩΝ ΠΟΣΟΤΙΚΩΝ ΜΕΤΑΒΛΗΤΩΝ #
+
+library(sm)
+library(vioplot) 
+par(mfrow=c(3,3))
+vioplot(temp,names="Temperature")
+vioplot(atemp,names="Feeling temperature")
+vioplot(hum,names="Humidity")
+vioplot(casual,names="Casual members") 
+vioplot(registered,names="Registered members")
+vioplot(cnt,names="Total rental bikes")
+vioplot(windspeed,names="Speed of wind")
+
+############# Κατηγορικές μεταβλητές #############
+
+fact.only<-data.frame(dteday,season,mnth,hour,yr,holiday,weekday,workingday,weathersit)
+fact.only1<-na.omit(fact.only)
+options(scipen = 100,digits = 0)
+summary(fact.only1)
+
+# Για να πάρω τους πίνακες συχνοτήτων των κατηγορικών μου μεταβλητών 
+
+x1<-round(100*prop.table(table(date.trim)))
+x2<-round(100*prop.table(table(season)))
+x3<-round(100*prop.table(table(mnth)))
+x4<-round(100*prop.table(table(hour)))
+x5<-round(100*prop.table(table(yr)))
+x6<-round(100*prop.table(table(holiday)))
+x7<-round(100*prop.table(table(workingday)))
+x8<-round(100*prop.table(table(weathersit)))
+x9<-round(100*prop.table(table(weekday)))
+
+
+#ΔΙΑΓΡΑΜΜΑΤΑ ΠΙΤΑΣ ΓΙΑ ΤΙΣ ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ
+par(mfrow=c(2,2))
+
+pie(x1, label=paste( round(x1,3), '%', sep='') ,col=heat.colors(4,alpha=0.8) ,main="Pie Chart for Date per 3 months",cex=0.9)
+legend('topright', fill=heat.colors(4,alpha=0.8), legend=levels(date.trim),cex=0.8)
+# έχουν πάρει δείγμα σχεδόν ίσο για κάθε τρίμηνο
+
+pie(x2, label=paste( round(x2,4), '%', sep='') ,col=heat.colors(4,alpha=0.8) ,main="Pie Chart for each season",cex=1)
+legend('topright', fill=heat.colors(4,alpha=0.8), legend=levels(season),cex=0.8)
+# σχεδόν ίδιο διάγραμμα με το πρώτο
+
+pie(x3, label=paste( round(x3,12), '%', sep='') ,col=heat.colors(12,alpha=0.8) ,main="Pie Chart for Months",cex=1.2)
+legend('topright', fill=heat.colors(12,alpha=0.8), legend=levels(mnth),cex=0.8)
+# έχουν πάρει δείγμα σχεδόν ίσο για κάθε μήνα
+
+par(mfrow=c(2,2))
+pie(x4, label=paste( round(x4,6), '%', sep='') ,col=heat.colors(6,alpha=0.8) ,main="Pie Chart Every 4-Hours",cex=1)
+legend('topright', fill=heat.colors(6,alpha=0.8), legend=levels(hour),cex=0.7)
+# είναι σχεδόν ίδιος ο αριθμός αυτών που οδηγούν ποδήλατο όλες τις ώρες εκτός από το τετράωρο 20:00-24:00. Κατά τις βραδυνές ώρες είναι λιγότεροι οι ποδηλάτες.   
+
+pie(x9, label=paste( round(x9,7), '%', sep='') ,col=heat.colors(7,alpha=0.8) ,main="Pie Chart for Day of Week",cex=1)
+legend('topright', fill=heat.colors(7,alpha=0.8), legend=levels(weekday),cex=0.7)
+# λίγο περισσότερα είναι τα άτομα που κυκλοφορούν το Κυριακή και Δευτέρα.
+
+
+pie(x5, label=paste( round(x5,2), '%', sep='') ,col=heat.colors(2,alpha=0.8) ,main="Pie Chart for Each Year",cex=1)
+legend('topright', fill=heat.colors(2,alpha=0.8), legend=levels(yr),cex=1.2)
+# έχουμε πάρει σχεδόν ίσο δείγμα και από τις δύο χρονιές.
+
+
+pie(x6, label=paste( round(x6,2), '%', sep='') ,col=heat.colors(2,alpha=0.8) ,main="Pie Chart for Holiday or Not",cex=1)
+legend('topright', fill=heat.colors(2,alpha=0.8), legend=levels(holiday),cex=0.7)
+# Σχεδόν όλοι οι ενοικιαστές δε βρίσκονται σε περίοδο διακοπών.
+
+
+pie(x7, label=paste( round(x7,2), '%', sep='') ,col=heat.colors(2,alpha=0.8) ,main="Pie Chart for Working Day or Not",cex=1)
+legend('topright', fill=heat.colors(2,alpha=0.8), legend=levels(workingday),cex=0.7)
+# τα 2/3 των ενοικιαστών δουλεύουν (εργασιακή μέρα) και δεν είναι σε μέρα αργίας ή άδειας.
+
+par(mfrow=c(2,2))
+pie(x8, label=paste( round(x8,3), '%', sep='') ,col=heat.colors(3,alpha=0.8) ,main="Pie Chart for Weather Situation",cex=1)
+legend('topright', fill=heat.colors(3,alpha=0.8), legend=levels(weathersit),cex=0.7)
+# Ο καιρός στην έρευνα είναι περισσότερο καθαρός, λιγότερο ομιχλώδης και σε πολύ λίγες περιπτώσεις βροχερός με κατά τόπους χιόνι.
+
+
+############# ΣΧΕΣΕΙΣ ΜΕΤΑΒΛΗΤΩΝ ΑΝΑ ΔΥΟ ##############
+
+# a cross tabulation or contingency table of frequencies(πίνακες που έχουν τις παρατηρούμενες συχνότητες χωρίς τα missing)
+# ΠΙΝΑΚΕΣ ΣΥΝΑΦΕΙΑΣ ΓΙΑ ΤΙΣ ΔΙΑΚΡΙΤΕΣ(ΠΟΙΟΤΙΚΕΣ) ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ #
+
+# βαθμοί ελευθερίας = ο ελάχιστος αριθμός των τιμών των συχνοτήτων σε έναν πίνακα που πρέπει να γνωρίζω για να προσδιορίσω και τις υπόλοιπες τιμές του πίνακα
+crossA<-table(mnth,date.trim)
+addmargins(crossA) # 11*3=33 βαθμοί ελευθερίας
+crossB<-table(mnth,season)
+addmargins(crossB) # 11*3=33 βαθμοί ελευθερίας
+crossC<-table(hour,workingday)
+addmargins(crossC) # 5*1 =5 βαθμοί ελευθερίας
+crossD<-table(hour,holiday)
+addmargins(crossD) # 5*1 =5 βαθμοί ελευθερίας
+crossE<-table(holiday,workingday)
+addmargins(crossE) # 1*1=1 βαθμός ελευθερίας
+crossF<-table(weathersit,season)
+addmargins(crossF) # 2*3=6 βαθμοί ελευθερίας
+crossG<-table(workingday,weekday)
+addmargins(crossG) # 1*6=6 βαθμοί ελευθερίας
+crossH<-table(hour,weekday)
+addmargins(crossH) # 5*6=30 βαθμοί ελευθερίας
+
+# Επειδή όμως δε μπορώ να συγκρίνω κατηγορίες μεταξύ τους που δεν είναι ισοπληθείς
+# το επόμενο βήμα είναι να συγκρίνω ποσοστά(CrossTable)
+
+library(gmodels)
+CrossTable(mnth,date.trim, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(mnth,season, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(hour,workingday, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(hour,holiday, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(holiday,workingday, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(weathersit,season, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(weekday,workingday, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+CrossTable(hour,weekday, prop.t=TRUE, prop.r=TRUE, prop.c=TRUE)
+
+
+# ΔΙΑΓΡΑΜΜΑΤΑ ΓΙΑ ΚΑΤΗΓΟΡΙΚΕΣ ΜΕΤΑΒΛΗΤΕΣ ΜΕΤΑΞΥ ΤΟΥΣ #
+
+par(mfrow=c(2,2))
+barplot(table(mnth,date.trim),legend.text=T,col=rainbow(12)) # αυτό το διάγραμμα δείχνει ότι ένας καλός τρόπος να χωρίσουμε τους μήνες και τις ημερομηνίες είναι οι 4 εποχές(χωρίζουμε τον χρόνο σε 4 τρίμηνα) 
+title("Stacked Barplot of Months in each 3-Month-Period")
+
+barplot(table(season,mnth),legend.text=T,col=rainbow(4)) # βλέπουμε ότι το δείγμα κάθε εποχής είναι ισομοιρασμένο  και προφανώς σχετίζεται με τους μήνες της δειγματοληψίας 
+title("Stacked Barplot of Season in each Month")
+
+barplot(table(workingday,hour),legend.text=T,col=heat.colors(2)) # αθροίζοντας όλες τις χρονικές ομάδες, η πλειοψηφία (957 άτομα έναντι 481) βρίσκεται σε μέρα εργασίας.Ακόμα και τα ξημερώματα, οι 179 ενοικιαστές εργάζονται, ενώ οι 80 όχι.
+title("Stacked Barplot of Working Day in each group of Hour")
+
+barplot(table(holiday,hour),legend.text=T,col=heat.colors(2)) # αθροίζοντας όλες τις χρονικές ομάδες, η συντριπτική πλειοψηφία (1398 άτομα έναντι 40) δε βρίσκεται σε διακοπές.
+title("Stacked Barplot of Holiday in each group of Hour")
+
+barplot(table(holiday,workingday),legend.text=T,col=rainbow(2)) # είναι λογικό το παρακάτω διάγραμμα στηλών, γιατί εννοείται ότι όσοι δουλεύουν, δε θα βρίσκονται σε διακοπές, καθώς και πολλοί απ' αυτούς
+                                                                  # που δεν είναι σε μέρα αργίας, δεν είναι απαραιτητο να έχουν πάει διακοπές. 
+title("Stacked Barplot of those being in holidays vs in a working day")
+
+barplot(table(weathersit,season),legend.text=T,col=rainbow(3)) # Κατά τη διάρκεια όλων των εποχών, ο καιρός είναι αίθριος με λίγα σύννεφα και κατά διαστήματα γίνεται ομιχλώδης, συννεφιασμένος, βροχερός και με χιόνι.
+title("Stacked Barplot of Weather Situations in each Season")
+
+barplot(table(weathersit,yr),legend.text=T,col=rainbow(3)) # Κατά τη διάρκεια των δύο ετών, ο καιρός είναι αίθριος με λίγα σύννεφα και κατά διαστήματα γίνεται ομιχλώδης, συννεφιασμένος, βροχερός και με χιόνι.
+                                                        # Γενικά, η κατανομή των καιρικών συνθηκών του 2011 είναι ανάλογη με αυτήν του 2012
+title("Stacked Barplot of Weather Situations in each Year")
+
+barplot(table(hour,weekday),legend.text=T,col=rainbow(6)) 
+title("Stacked Barplot of Hours in each Day of Week") # οι ώρες που έγινε η χρήση των νοικιασμένων ποδηλάτων είναι ισομοιρασμένες κάθε μέρα της βδομάδας.
+
+barplot(table(workingday,weekday),legend.text=T,col=rainbow(2)) 
+title("Stacked Barplot of Working Days in each Day of Week") 
+
+barplot(table(holiday,weekday),legend.text=T,col=rainbow(2)) 
+title("Stacked Barplot of Holidays in each Day of Week")
+# είναι ξεκάθαρο από τα τελευταία δύο διαγράμματα ότι οι μέρες εργασίας είναι από Δευτέρα έως Παρασκευή(με κάποιες εξαιρέσεις)
+# ενώ παράδοξο είναι ότι τις μέρες αργίας(Σαββατο-Κυριακή) κανένας από τους ενοικιαστές δε βρίσκεται σε διακοπές.
+
+# TA P-VALUE ΤΟΥ X^2 ΕΛΕΓΧΟΥ ΑΝΕΞΑΡΤΗΣΙΑΣ
+chisq.test(date.trim,mnth)$p.value # Παρατηρούμε ότι ο μήνας έχει εξάρτηση με το τρίμηνο στο οποίο ανήκει( ΛΟΓΙΚΟ) 
+chisq.test(season,mnth)$p.value # Παρατηρούμε ότι ο μήνας έχει εξάρτηση με την εποχή στην οποία ανήκει( ΛΟΓΙΚΟ) 
+chisq.test(workingday,hour)$p.value #Προφανώς, οι ώρες που χρησιμοποιούν την υπηρεσία οι ενοικιαστές φαίνεται ότι διαφέρουν ανάλογα με το αν είναι μέρα εργασίας ή όχι.
+chisq.test(holiday,hour)$p.value # Οι ώρες που χρησιμοποίησαν οι ενοικιαστές διαφέρουν ανάλογως εάν βρίσκονταν σε διακοπές ή όχι.
+chisq.test(holiday,workingday)$p.value # Είναι αλληλένδετες οι εργασιακές μέρες με τις μέρες διακοπών.
+chisq.test(weathersit,season)$p.value # Είναι απόλυτα φυσιολογικό το αποτέλεσμα ότι οι καιρικές συνθήκες παρουσιάζουν διαφορές μεταξύ των τεσσάρων εποχών.
+chisq.test(weathersit,yr)$p.value # Με μια πρώτη ματιά, δεν υπάρχει διαφορά στις καιρικές συνθήκες μεταξύ των δύο ετών. 
+chisq.test(weekday,season)$p.value
+chisq.test(holiday,weekday)$p.value # Υπάρχει εξάρτηση μεταξύ τις μέρες διακοπών με την κάθε μέρα τησ βδομάδας
+chisq.test(workingday,weekday)$p.value # δεν είναι κάθε μέρα εργάσιμη μέρα
+
+##### ΓΡΑΦΗΜΑ ΠΟΥ ΔΕΙΧΝΕΙ ΚΑΙ ΤΙΣ ΣΥΣΧΕΤΙΣΕΙΣ ΤΩΝ ΠΟΣΟΤΙΚΩΝ ΜΕΤΑΒΛΗΤΩΝ ΜΕΤΑΞΥ ΤΟΥΣ #####
+
+par(mfrow=c(1,1))
+library(psych)
+pairs.panels(num.only) 
+
+# Εμφανείς συσχετίσεις: 1) temp-atemp 2)casual-registered 3)casual-cnt 4)registered-cnt 5)casual-temp 6)casual-atemp
+######## ΣΧΟΛΙΑΣΜΟΣΣΣΣΣΣΣ ######## και στο word
+# Παρόλο που γνωρίζουμε ότι η φαινομενική θερμοκρασία επηρεάζεται από την υγρασία και τον άνεμο, στα δεδομένα μας δεν υπάρχει μεγάλη συσχέτιση
+# είναι λογικό να παρουσιάζουν μεγάλη συσχέτιση οι συχνοί χρήστες με τους συνολικούς χρήστες, καθώς και μικρότερη συσχέτιση οι συχνοί με τους καταγεγραμμένους χρήστες.
+# Υπάρχει μια μικρή συσχέτιση 0.5 περίπου μεταξύ των συχνών χρηστών και της θερμοκρασίας.
+# 7)hum-atemp 8)hum-windspeed
+
+# ΓΡΑΦΗΜΑΤΑ ΠΟΥ ΔΙΝΟΥΝ ΤΙΣ ΑΡΙΘΜΗΤΙΚΕΣ ΚΑΙ ΟΠΤΙΚΕΣ ΣΥΣΧΕΤΙΣΕΙΣ ΚΑΙ ΤΑ P-VALUES ΑΥΤΩΝ ΑΝΑΜΕΣΑ ΣΤΙΣ ΣΥΝΕΧΕΙΣ ΜΕΤΑΒΛΗΤΕΣ #
+# Ετσι, ελέγχουμε ποιές συσχετίσεις είναι στατιστικώς σημαντικές #
+
+#2. Calculating Median, Mean and Standard deviation of spring.
+spring <- subset(bikenew, season == 2)[,11]
+sp.mean <- mean(spring) 
+sp.median <- median(spring) 
+sp.sd <- sd(spring) 
+
+
+#3. Calculating Median, Mean and Standard deviation of summer.
+summer <- subset(bikenew, season == 3)[,11]
+su.mean <- mean(summer) 
+su.median <- median(summer) 
+su.sd <- sd(summer) 
+
+
+#4. Calculating Median, Mean and Standard deviation of autumn.
+autumn <- subset(bikenew, season == 4)[,11]
+au.mean <- mean(autumn)
+au.median <-median(autumn)
+au.sd <- sd(autumn)
+
+#1. Calculating Median, Mean and Standard deviation of winter.
+winter <- subset(bikenew, season == 1)[,11]
+wi.mean <- mean(winter)
+wi.median <- median(winter)
+wi.sd <- sd(winter)
+
+
+library(corrplot)
+library(sjPlot)
+par(mfrow=c(1,1))
+sjt.corr(num.only ,corr.method = "pearson",show.p=TRUE,p.numeric = FALSE,fade.ns = TRUE,digits = 3,triangle = "lower",remove.spaces = TRUE)
+
+x <- cor(num.only)
+corrplot(x, type="upper", order="hclust") 
+##### ΣΧΟΛΙΑΣΜΟΣΣΣΣ
+# Από το διάγραμμα φαίνεται μια ελαφριά αρνητική συσχέτιση περίπου 0.3 μεταξύ της υγρασίας και της ταχύτητας του ανέμου.
+sjp.corr(num.only,corr.method = "pearson")
+
+# ΚΑΝΩ ΤΑ ΠΑΡΑΚΑΤΩ ΓΡΑΦΗΜΑΤΑ ΓΙΑ ΝΑ ΕΛΕΓΞΩ ΑΝ Η ΣΧΕΣΗ ΠΟΥ ΒΛΕΠΩ ΣΤΑ pairs.panels # 
+# ΕΙΝΑΙ ΙΣΟΚΑΤΑΝΕΜΗΜΕΝΗ ΑΝΑΛΟΓΑ season, workingday, hour, weekday, mnth, weathersit #
+
+# Plot for each season #
+
+par(mfrow=c(1,2))
+mycolors1<-c("red","yellow","dark green","blue")
+
+plot(temp,atemp,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Apparent versus Air Temperature for each season")
+
+plot(windspeed,hum,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Humidity versus Speed of Wind for each season")
+# ελάχιστη συσχέτιση, κάτι το οποίο μας προβληματίζει ελαφρώς γιατί αποτελούν ενδεικτικά μέτρα για την φαινομενική θερμοκρασία.
+
+plot(hum,atemp,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Apparent Temperature versus Humidity for each season")
+# θα έπρεπε να έχουν πιο γραμμική σχέση(μεγαλύτερη συσχέτιση)
+
+plot(windspeed,atemp,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Apparent Temperature versus Speed of Wind for each season")
+
+# Στα διαγράμματα hum-atemp και windspeed-atemp δε βλέπουμε σχεδόν καθόλου συσχέτιση, γεγονός που μας προβληματίζει
+# καθώς η υγρασία και η ταχύτητα ανέμου είναι ενδεικτικά μέτρα που επηρεάζουν τα επίπεδα της φαινομενικής θερμοκρασίας.
+
+plot(temp,casual,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Casual users versus Air Temperature for each season")
+
+plot(atemp,casual,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Casual users versus Apparent Temperature for each season")
+# τα τελευταία δύο έχουν μικρές διαφορές
+
+plot(cnt,casual,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Casual versus Total users for each season")
+# Παρόλο που αυξάνεται ο αριθμός των συνολικών ενοικιασμένων ποδηλάτων, δεν έχει μεγάλη συσχέτιση με τον αριθμό συχνών χρηστών  
+
+plot(cnt,registered,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Registered versus Total users for each season")
+
+par(mfrow=c(1,1))
+plot(casual,registered,col=mycolors1,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors1,pch=19,title='SEASON'))
+title("Registered versus Casual users for each season")
+
+# Plot for being working day or not #
+
+par(mfrow=c(1,2))
+mycolors2<-c("red","dark green")
+
+plot(temp,atemp,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(season),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Apparent versus Air Temperature for working day or not")
+
+plot(hum,atemp,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(workingday),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Apparent Temperature versus Humidity for working day or not")
+
+plot(windspeed,atemp,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(workingday),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Apparent Temperature versus Speed of Wind for working day or not")
+
+plot(temp,casual,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(workingday),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Casual users versus Air Temperature for working day or not")
+
+plot(atemp,casual,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(workingday),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Casual users versus Apparent Temperature for working day or not")
+
+plot(cnt,casual,col=mycolors2,pch=19)
+with(num.only,legend('topleft',legend=levels(workingday),col=mycolors2,pch=19,title='WORKING DAY'))
+title("Casual versus Total users for working day or not")
+
+# Plot for each 4-hour-period #
+
+par(mfrow=c(1,2))
+mycolors3<-c("red","yellow","dark green","blue","orange","purple")
+
+plot(temp,atemp,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Apparent versus Air Temperature every 4 Hours")
+
+plot(hum,atemp,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Apparent Temperature versus Humidity every 4 Hours")
+
+plot(windspeed,atemp,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Apparent Temperature versus Speed of Wind every 4 Hours")
+
+plot(temp,casual,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Casual users versus Air Temperature every 4 Hours")
+
+plot(atemp,casual,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Casual users versus Apparent Temperature every 4 Hours")
+
+plot(cnt,casual,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Casual versus Total users every 4 Hours")
+
+par(mfrow=c(1,1))
+plot(casual,registered,col=mycolors3,pch=19)
+with(num.only,legend('topleft',legend=levels(hour),col=mycolors3,pch=19,title='HOURS'))
+title("Registered versus Casual users every 4 Hours")
+
+# Plot for each Day of Week #
+
+par(mfrow=c(1,2))
+mycolors4<-c("red","yellow","dark green","blue","orange","purple","pink")
+
+plot(temp,casual,col=mycolors4,pch=19)
+with(num.only,legend('topleft',legend=levels(weekday),col=mycolors4,pch=19,title='WEEKDAY'))
+title("Casual users versus Air Temperature for each Day of Week")
+
+plot(atemp,casual,col=mycolors4,pch=19)
+with(num.only,legend('topleft',legend=levels(weekday),col=mycolors4,pch=19,title='WEEKDAY'))
+title("Casual users versus Apparent Temperature for each Day of Week")
+
+plot(cnt,casual,col=mycolors4,pch=19)
+with(num.only,legend('topleft',legend=levels(weekday),col=mycolors4,pch=19,title='WEEKDAY'))
+title("Casual versus Total users for each Day of Week")
+
+plot(casual,registered,col=mycolors4,pch=19)
+with(num.only,legend('topleft',legend=levels(weekday),col=mycolors4,pch=19,title='WEEKDAY'))
+title("Registered versus Casual users for each Day of Week")
+
+
+# Plot for each Weather Situation #
+
+par(mfrow=c(1,2))
+mycolors5<-c("red","yellow","dark green")
+
+plot(temp,atemp,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Apparent versus Air Temperature for each situation")
+
+plot(hum,atemp,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Apparent Temperature versus Humidity for each situation")
+
+plot(windspeed,atemp,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Apparent Temperature versus Speed of Wind for each situation")
+
+plot(temp,casual,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Casual users versus Air Temperature for each situation")
+
+plot(atemp,casual,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Casual users versus Apparent Temperature for each situation")
+
+plot(cnt,casual,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Casual versus Total users for each situation")
+
+par(mfrow=c(1,1))
+plot(casual,registered,col=mycolors5,pch=19)
+with(num.only,legend('topleft',legend=levels(weathersit),col=mycolors5,pch=19,title='Weather Situation'))
+title("Registered versus Casual users for each situation")
+
+test.result.1 <- t.test(x = temp, y = atemp, alternative = "two.sided")
+test.result.1 # there is difference between temperature and feeled temperature
+
+hist(temp, yaxt = "n", xaxt = "n", xlab = "",ylab = "", main = "Two Sample t-test", xlim = c(5, 40), col = rgb(0, 0, 1, alpha = .1))
+text(x = 13, y = 140, paste("Mean real Temp.\n", round(mean(temp), 2), sep = ""), col = "blue")
+abline(v = mean(temp), lty = 1,col = rgb(0, 0, 1, alpha = 1), lwd = 4)
+par(new = T)
+hist(atemp, yaxt = "n", xaxt = "n", xlab = "",ylab = "", main = "", xlim = c(5, 40), col = rgb(1, 0, 0, alpha = .1))
+abline(v = mean(atemp), lty = 1,col = rgb(1, 0, 0, alpha = 1), lwd = 4)
+text(x= 32, y = 131, paste("Mean feeled Temp.\n", round(mean(atemp), 2), sep = ""),  col = "red")
+mtext(text = "Alternative Hypothesis is confirmed and true difference in means is not equal to 0", line = 0, side = 3)
+
+# two-sample t-test for real temperature and feeled temperature in spring.
+
+temp.spring <- subset(bikenew, subset = season == "2")$temp
+atemp.spring <- subset(bikenew, subset = season == "2")$atemp
+test.result.spring <- t.test(x = temp.spring, y = atemp.spring, alternative = "two.sided")
+test.result.spring # the mean temperature is different from the mean feeling temperature during spring.
+
+# two-sample t-test for real temperature and feeled temperature in winter.
+
+temp.winter <- subset(bikenew, subset = season == "1")$temp
+atemp.winter <- subset(bikenew, subset = season == "1")$atemp
+test.result.winter <- t.test(x = temp.winter, y = atemp.winter, alternative = "two.sided")
+test.result.winter # the mean temperature is not different from the mean feeling temperature during winter.
+
+# two-sample t-test for real temperature and feeled temperature in summer.
+
+temp.summer <- subset(bikenew, subset = season == "3")$temp
+atemp.summer <- subset(bikenew, subset = season == "3")$atemp
+test.result.summer <- t.test(x = temp.summer, y = atemp.summer, alternative = "two.sided")
+test.result.summer # the mean temperature is different from the mean feeling temperature during summer.
+
+# two-sample t-test for real temperature and feeled temperature in autumn.
+
+temp.autumn <- subset(bikenew, subset = season == "4")$temp
+atemp.autumn <- subset(bikenew, subset = season == "4")$atemp
+test.result.autumn <- t.test(x = temp.autumn, y = atemp.autumn, alternative = "two.sided")
+test.result.autumn # the mean temperature is not different from the mean feeling temperature during autumn.
+
+###### ΜΟΝΤΕΛΟ ΓΙΑ COUNT ########
+
+mean(cnt)
+var(cnt) # υπάρχει μεγάλη διαφορά μεταξύ του μέσου και της διακύμανσης. Προφανώς επειδή η διασπορά είναι πολύ μεγαλύτερη του μέσου, η μεταβλητή cnt δεν ακολουθεί κατανομή poisson.
+# τα δεδομένα εμφανίζουν υπερδιακύμανση. 
+# Για να δημιουργήσουμε ένα μοντέλο που θα προβλέπει τους συνολικούς ενοικιαστές, πρέπει πρώτα να ερευνήσουμε τις συσχετίσεις μεταξύ της εξαρτημένης μεταβλητής cnt και των υπόλοιπων επεξηγηματικών.
+
+
+# boxplots # Κάνω τα Boxplots για να δω αν υπάρχει συσχέτιση μεταξύ της ποσοτικής cnt και μιας κατηγορικής επεξηγηματικής μεταβλητής 
+
+par(mfrow=c(2,2))
+boxplot(split(cnt,season),main="Count by Season",col=c("red","dark green","yellow","blue"))
+boxplot(split(cnt,weathersit),main="Count by Weather Situation",col=c("red","dark green","yellow"))
+boxplot(split(cnt,hour),main="Count by Hour",col=c("red","dark green","yellow","blue","orange","purple"))
+boxplot(split(cnt,weekday),main="Count by Day of Week",col=c("red","dark green","yellow","blue","orange","purple","pink"))
+boxplot(split(cnt,workingday),main="Count by Working Day",col=c("red","dark green"))
+boxplot(split(cnt,yr),main="Count by Year",col=c("red","dark green"))
+par(mfrow=c(1,1))
+boxplot(split(cnt,holiday),main="Count by Holiday",col=c("red","dark green"))
+
+# boxplots between casual users and one quantitative variable #
+
+par(mfrow=c(3,3))
+boxplot(split(casual,season),main="Casual users by Season",col=c("red","dark green","yellow","blue"))
+boxplot(split(casual,weathersit),main="Casual users by Weather Situation",col=c("red","dark green","yellow"))
+boxplot(split(casual,hour),main="Casual users by Hour",col=c("red","dark green","yellow","blue","orange","purple"))
+boxplot(split(casual,weekday),main="Casual users by Day of Week",col=c("red","dark green","yellow","blue","orange","purple","pink"))
+boxplot(split(casual,workingday),main="Casual users by Working Day",col=c("red","dark green"))
+boxplot(split(casual,yr),main="Casual users by Holiday",col=c("red","dark green"))
+boxplot(split(casual,holiday),main="Casual users by Holiday",col=c("red","dark green"))
+
+
+# The first plot shows the relationship between cnt variable and season, which confirms the conclusion we got above. The average numbers of bike rentals are the highest during summer and spring.
+# The second plot shows the relationship between cnt variable and weather. There is a clearly decreasing trend of bike rentals when weather conditions grow worse.
+# The third plot shows the relationship between cnt variable and 4-period-hours. We can see that during the night and the first morning hours, bike is not preferred as mean of transport . It's more used in the middle of the day and in the afternoon.
+# The forth plot shows the relantionship between cnt variable and weekday. There is not much difference in the rental habits during the days of week.
+# The fifth plot shows the relationship between cnt variable and working day. Almost exactly "equal people" choose to rent a bike either they work or not.
+# ( Here, there is something obviously interesting.Total users are equal either it's working day or not, but casual users are more when it's not day of work. )
+# The sixth plot shows the relationship between cnt variable and year. Total rentals are much more the second year.
+# The last plot shows the relationship between cnt variable and holiday. We can see that the average number of bike rentals on non-holiday is higher than holiday, but has more variability as well.
+
+#### ΣΗΜΑΝΤΙΚΕΣ ΣΧΕΣΕΙΣ ΤΟΥ COUNT ΜΕ ΚΑΤΗΓΟΡΙΚΕΣ #####
+
+# 1) cnt-season
+# 2) cnt-weathersit
+# 3) cnt-hour
+# 4) cnt-yr
+
+library(stats)
+summary(aov(cnt~weathersit)) # υπάρχουν σημαντικές διαφορές στις ενοικιάσεις ποδηλάτων μεταξύ των διάφορων καιρικών συνθηκών. 
+TukeyHSD(aov(cnt~weathersit))
+summary(aov(cnt~season)) # υπάρχουν σημαντικές διαφορές στις ενοικιάσεις ποδηλάτων μεταξύ των 4 εποχών. Μοιάζουν κατά τις εποχές Άνοιξη-Καλοκαίρι.
+TukeyHSD(aov(cnt~season))
+summary(aov(cnt~hour)) # υπάρχουν σημαντικές διαφορές στις ενοικιάσεις ποδηλάτων μεταξύ των 6 χρονικών περιόδων.
+TukeyHSD(aov(cnt~hour))
+summary(aov(cnt~yr)) # υπάρχει σημαντική διαφορά στις ενοικιάσεις ποδηλάτων μεταξύ των 2 ετών.
+TukeyHSD(aov(cnt~yr))
+
+######### ΔΙΑΓΡΑΜΜΑΤΑ ΓΙΑ ΣΥΝΕΧΕΙΣ ΜΕ COUNT ##########
+
+library(car)
+scatterplot(cnt~temp,data = num.only, xlab = 'Temperature', ylab = 'Number of Rentals',pch=19)
+scatterplot(cnt~atemp,data = num.only, xlab = 'Apparent Temperature', ylab = 'Number of Rentals',pch=19)
+scatterplot(cnt~hum,data = num.only, xlab = 'Humidity', ylab = 'Number of Rentals',pch=19)
+scatterplot(cnt~windspeed,data = num.only, xlab = 'Speed of Wind', ylab = 'Number of Rentals',pch=19)
+
+cor.temp <- cor.test(x = temp,y = cnt)
+cor.temp # correlation 41%
+cor.atemp <- cor.test(x = atemp, y = cnt)
+cor.atemp # correlation 41%
+
+# Plotting the association:
+par(mfrow=c(1,1))
+plot(x = 1, y = 1, xlab = "Temperature in Celcius", ylab = "Bike rentals", type = "n", main = "Association between temperature and bike rentals",xlim = c(0, 40), ylim = c(0, 1000))
+points(temp,casual, pch = 16, col = "red")
+points(temp, registered, pch = 16, col = "skyblue")
+legend("topleft",legend = c("casual", "registered"), col = c("red","skyblue"), pch = c(16, 16), bg = "white")
+abline(lm(registered ~ temp), lty = 6, col = "blue")
+abline(lm(casual ~ temp), lty = 6, col = "dark green")
+reg <- paste("cor = ", round(cor(registered,temp), 2), sep = "")
+cas <- paste("cor = ", round(cor(casual, temp), 2), sep = "")
+legend("left",legend = c(cas, reg) , col = c('dark green', 'blue'),pch = c(16, 16), bg = "white")
+
+ 
+# Για να ελέγξω αν υπάρχει καμιά αλληλεπίδραση στο μοντέλο που θα βάλω
+par(mfrow=c(2,2))
+interaction.plot(mnth,weathersit,cnt,type=c("l"),legend=TRUE,col = c("red","dark green","orange"),lwd=2)
+interaction.plot(season,weathersit,cnt,type=c("l"),legend=TRUE,col = c("red","dark green","orange"),lwd=2)
+interaction.plot(season,workingday,cnt,type=c("l"),legend=TRUE,col = c("red","dark green"),lwd=2)
+interaction.plot(season,holiday,cnt,type=c("l"),legend=TRUE,col = c("red","dark green"),lwd=2)
+interaction.plot(season,yr,cnt,type=c("l"),legend=TRUE,col = c("red","dark green"),lwd=2)
+interaction.plot(mnth,workingday,cnt,type=c("l"),legend=TRUE,col = c("red","dark green"),lwd=2)
+interaction.plot(mnth,hour,cnt,type=c("l"),legend=TRUE,col = c("red","dark green","orange","blue","purple","yellow"),lwd=2)
+interaction.plot(season,hour,cnt,type=c("l"),legend=TRUE,col = c("red","dark green","orange","blue","purple","yellow"),lwd=2)
+
+
+# Poisson regression is good for modeling count data. It assumes the response variable follows Poisson distribution and can be explained by linear combination of the explanatory variables.
+
+#So first of all, we used Poisson regression as our default method to fit a model with all the explanatory variables but no interactions, although we have already known there is over dispersion in the data set.
+
+model1 <- glm(cnt ~ season + holiday + workingday + weathersit + temp + atemp + hum+ windspeed+ yr+mnth+hour + weekday, family = poisson)
+summary(model1)
+AIC(model1) # 89756
+mfull1<-model1
+mnull1<-glm(cnt~1,family=poisson)
+step(mfull1,scope=list(lower=mnull1,upper=mfull1),direction = "backward")
+
+#without the covariates of workingday and temperature
+model2<-glm(cnt ~ season+holiday + weathersit + atemp + hum + yr + mnth + hour +windspeed +weekday, family = poisson)
+summary(model2) 
+AIC(model2) # 89755
+
+# Quasi-Poisson model is a remedy for over dispersion in Poisson model. It estimates a scale parameter as well, and also fixes the estimated standard error. It gives us more conservative results.
+
+model3 <- glm(cnt ~ season + holiday + weathersit + atemp + hum + windspeed + yr + mnth + hour + weekday, family = quasipoisson)
+summary(model3) # NA
+par(mfrow=c(1,1))
+plot(model3,pch=19)
+
+# Comparing the two tables above, we can see that the estimated standard errors in Quasi-Poisson model are larger than that in Poisson model. 
+# And the dispersion parameter given by Quasi-Poisson model is 60.39629, which means there is indeed over dispersion in the data set and Poisson model underestimated the standard errors.
+# In order to deal with overdispersion, we can use the negative binomial regression model, which gives us AIC.
+# δε χρησιμοποιώ την gamma γιατί τα δεδομένα μου είναι διακριτά, οπότε χρησιμοποιώ την poisson-gamma, η οποία είναι η negative binomial
+
+library(MASS) 
+#without the covariates of windspeed,workingday and mnth
+model4 <- glm.nb(cnt ~ season + holiday +  weathersit +atemp+  hum+ yr+hour +mnth+weekday)
+summary(model4) 
+AIC(model4) # 16422
+mfull4<-model4
+mnull4<-glm.nb(cnt~1)
+step(mfull4,scope=list(lower=mnull4,upper=mfull4),direction = "backward")
+
+# without the covariate of season
+model5 <- glm.nb(cnt ~ holiday+ weathersit + atemp + hum+ yr+hour+weekday+mnth)
+summary(model5) 
+AIC(model5) # 16422
+
+# βγάζω το weekday
+model6 <- glm.nb(cnt ~ holiday +  weathersit + atemp + hum+ yr+hour +mnth)
+summary(model6) 
+AIC(model6) # 16426
+
+model7<-glm(cnt ~ season + holiday +  weathersit +atemp+  hum+ yr+hour +mnth+weekday,family = poisson)
+summary(model7) #89780 # compare with negative binomial model4
+
+model8<-glm(cnt ~ holiday +  weathersit + atemp + hum+ yr+hour +mnth,family = poisson)
+summary(model8) #90689 # compare with negative binomial model6
+
+# We also fitted linear models for the data set with log transformation of the response variable.
+count<-log(cnt)
+model9<-lm(count~season + holiday + weathersit + atemp+temp + hum + windspeed + yr + mnth + hour + weekday)
+summary(model9) 
+AIC(model9) # 3479.165
+n<-1500-62
+1-(sum(model9$residuals^2)/((n-1)*var(count^2))) # πραγματικό R^2=99.5%
+# It suggests about 71% of the variability in the response variable can be explained by the linear model.
+mnull9<-lm(count~1)
+mfull9<-model9
+step(mfull9,scope=list(lower=mfull9,upper=mfull9),direction = "backward")
+anova(model9,test="F") #remove weekday
+
+#### Remove weekday.
+model10<-lm(count~season + holiday + weathersit + atemp+temp +  windspeed +hum + yr + hour+mnth )
+summary(model10) 
+AIC(model10) #3477.79
+plot(model10)
+mfull10<-model10
+mnull10<-lm(count~1)
+step(mfull10,scope=list(lower=mnull10,upper=mfull10),direction = "backward")
+
+model10<-lm(count~season + holiday + weathersit + atemp + hum + yr + hour,data=bikenew)
+summary(model10)
+ols_step_forward(model10)
+AIC(model10) # 3494.279
+
+# However, checking the residual plot and QQ plot, we can see that the residuals have a pattern, and are not normally distributed, which means the linear model doesn’t fit the data well.
+# From the residual plot, we understand that there is not the same variance everywhere.
+# We should perform transformation on the explanatory variables as well. We can use Box-Tidwell method.
+# There are two numerical explanatory variables in the linear model: temp, hum.
+
+library(car)
+hum.new<-(hum+1)/102
+boxTidwell(count~atemp+hum.new)
+# αφού το p-value(temp)<<0.001,  χρειάζεται μετασχηματισμό η atemp
+# αφού το p-value(hum.new)<<0.001,  χρειάζεται μετασχηματισμό η hum.new
+
+model11.a<-lm(cnt~season + holiday + weathersit + I(atemp^(0.5)) + I(hum.new^(2)) + yr + hour )
+summary(model11.a) # explain the 54%  of the variability
+AIC(model11.a) #  17952.99
+mfull11<-model11.a
+mnull11<-lm(count~1)
+step(mfull11,scope=list(lower=mnull11,upper=mfull11),direction = "backward")
+
+#without holiday
+model11.b<-lm(cnt~ season+ weathersit + I(temp^(0.5)) + I(hum.new^(2)) + yr + hour,data = bikenew )
+summary(model11.b) # 54% of the variability
+AIC(model11.b) #  17959.81
+
+#####
+bike<-data.frame(count,atemp,season,weathersit,hum,yr,hour)
+model12<-lm(count~atemp+ season +  weathersit +hum+ yr + hour,bike)
+summary(model12) ##71%    ########
+AIC(model12) # 3488.967
+plot(model12)
+round(exp(coef(model12)),2)
+
+
+                    ######### LASSO REGRESSION MODEL #########
+###### Lasso regression (least absolute shrinkage and selection operator) performs variable selection 
+# that aims to increase prediction accuracy by identifying a simpler model. 
+# It is similar to Ridge regression but with variable selection.
+
+
+
+########### Gaussian model ##### lasso regression-> performs variable selection
+
+library(glmnet)
+library(car)
+month<-as.numeric(mnth)
+bike.lasso<-data.frame(cnt,season ,workingday ,weathersit ,atemp,temp ,hum , windspeed , yr ,month ,hour, weekday,casual,registered)
+bike.lasso<-na.omit(bike.lasso)
+
+#without holiday, casual, registered
+mfull.lasso<-glm(cnt~season+workingday+weathersit +atemp+ temp +hum + windspeed + yr + month+hour + weekday,data = na.omit(bike.lasso) )
+vif(mfull.lasso) ## check of multicollinearity
+# problem with month, temp, atemp
+
+X1<-model.matrix(mfull.lasso)[,-1] # matrix of the full model without the constant
+Y<-model.frame(mfull.lasso)$cnt
+
+CV<-cv.glmnet(X1,Y,family="gaussian",alpha=1,nlambda=50) # cross-validation to find optimal lambda
+                                                   # selecting best regularization parameter lambda(alpha=1 for lasso)
+
+plot(CV) #The following plot shows the models (with the different lambda values) that glmnet has fit
+        # along with the mean-squared error for each of the models.
+
+opt.lambda<-c(CV$lambda.1se,CV$lambda.min) # με το lambda.min, βγάζει μόνο τη θερμοκρασία
+coef(CV, s = opt.lambda) ## coefficients of both lambda.1se, lambda.min
+CV$lambda.min  #is the one lambda with the minimum CV-MSE
+
+## CV$lambda.1se # largest value of lambda such that error is within 1 standard error of the minimum 
+
+
+# fit gaussian model
+fit1<-glmnet(X1,Y,family="gaussian",alpha=1) 
+print(fit1)
+plot(fit1,label = T) # shows which covariates are more important
+plot(fit1, xvar = "lambda", label = TRUE)
+coef.fit1<-round(coef(CV, s = "lambda.1se"),1)  
+# round(coef(CV, s = "lambda.min"),1) # coefficients for lambda min with the minimum CV-MSE. These coefficients are the effects for original(unstandardized) variables.
+
+fit.model1<-glm(cnt~workingday+weathersit +atemp+hum + yr + month+hour ,data = na.omit(bike.lasso))
+summary(fit.model1) # AIC=17953
+
+zfit1<-coef.fit1[-1]*apply(X1,2,sd)
+zbols1<-coef(mfull.lasso)[-1]*apply(X1,2,sd)
+s1<-sum(abs(zfit1))/sum(abs(zbols1))
+s1 #  0.58
+
+
+
+########### Gaussian model ##### WITH LOG(cnt) ####
+
+count<-log(cnt)
+bike.lasso2<-data.frame(count,season ,workingday ,weathersit ,atemp,temp ,hum ,windspeed ,yr ,month ,hour, weekday)
+bike.lasso2<-na.omit(bike.lasso2)
+
+mfull.lasso2<-glm(count~season + weathersit +atemp+ temp + hum + windspeed + yr + month + hour + weekday,data = bike.lasso2)
+vif(mfull.lasso2) # problem with atemp, temp, month
+
+X2<-model.matrix(mfull.lasso2)[,-1] # matrix of the full model without the constant
+Y2<-model.frame(mfull.lasso2)$count
+
+CV2<-cv.glmnet(X2,Y2,family="gaussian",alpha=1,nlambda=50) # cross-validation to find optimal lambda
+# selecting best regularization parameter lambda(alpha=1 for lasso)
+
+plot(CV2) #The following plot shows the models (with the different lambda values) that glmnet has fit
+# along with the mean-squared error for each of the models.
+
+opt.lambda2<-c(CV2$lambda.1se,CV2$lambda.min) # με το lambda.min, βγάζει μόνο τη θερμοκρασία
+exp(coef(CV2, s = opt.lambda2)) ## coefficients of both lambda.1se, lambda.min
+CV2$lambda.min  #is the one lambda with the minimum CV-MSE
+
+## CV2$lambda.1se # largest value of lambda such that error is within 1 standard error of the minimum 
+
+################
+fit.model2<-lm(count~weathersit+atemp+hum+yr+hour)
+summary(fit.model2) 
+Anova(fit.model2)
+AIC(fit.model2) #3501.087
+round(exp(coef(fit.model2)),3)
+
+ncvTest(fit.model2)
+yhat<-fitted(fit.model2)
+yhat.quantiles<-cut(yhat,breaks=quantile(yhat,probs=seq(0,1,0.25)),dig.lab = 6)
+leveneTest(rstudent(fit.model2)~yhat.quantiles)
+boxplot(rstudent(fit.model2)~yhat.quantiles) #not constant variance
+residualPlot(fit.model2,type="rstudent") 
+#####################
+
+# fit gaussian model
+fit2<-glmnet(X2,Y2,family="gaussian",alpha=1) # lambda.min
+print(fit2)
+plot(fit2,label = T) # shows which covariates are more important
+plot(fit2, xvar = "lambda", label = TRUE)
+coef.fit2<-round(exp(coef(CV2, s = "lambda.min")),2)  # coefficients for lambda min with the minimum CV-MSE. These coefficients are the effects for original(unstandardized) variables.
+
+
+zfit2<-coef.fit2[-1]*apply(X2,2,sd)
+zbols2<-exp(coef(mfull.lasso2))[-1]*apply(X2,2,sd)
+s2<-sum(abs(zfit2))/sum(abs(zbols2))
+s2 #  0.97 # ποσοστό συρρίκνωσης
+
+
+
+
+
+month<-as.numeric(mnth)
+bike.regression<-data.frame(atemp,hum,season,weathersit,hr,yr,mnth)
+
+## first attempt ##
+
+mod1<-lm(cnt~atemp+hum+season+weathersit+hour+yr+season:weathersit+month:hour,data=bike.regression)
+library(olsrr)
+library(caret)
+ols1<-ols_step_forward(mod1)
+ols1
+best1<-mod1
+summary(best1) # 54%
+AIC(best1) # 17956.42
+
+## second attempt ##
+
+library(car)
+count<-log(cnt)
+mod2<-lm(count~atemp+season+  weathersit +hum+ yr + hour,data=bikenew)
+ols2<-ols_step_forward(mod2)  
+ols2
+best2<-mod2
+summary(best2) # 71%
+AIC(best2) # 3496.9493
+round(exp(coef(best2)),2)
+
+
+
+## third attempt ##
+
+library(car)
+hum.new<-(hum+1)/102
+boxTidwell(cnt~atemp+hum.new)
+bike.regression3<-data.frame(atemp,hum.new,season,weathersit,hour,yr,month)
+mod3<-lm(cnt~I(atemp^(0.5))+I(hum.new^2)+season+weathersit+hour+yr+season:weathersit+month:hour,data=bike.regression3)
+ols3<-ols_step_forward(mod3)
+ols3
+best3<-mod3
+summary(best3) # 54%
+AIC(best3) # 17958.95
+
+###### prediction of models #######
+detach(bikenew)
+
+
+
+count<-log(cnt)
+
+decision1<-lm(count~atemp+season+  weathersit +hum+ yr + hour)
+AIC(decision1) # 3488.967
+
+decision2<-lm(count~weathersit+atemp+hum+yr+hour)
+AIC(decision2) # 3501.087
+
+mfull<-lm(count~atemp+hum+hour+weathersit+yr+season+atemp:hum+hour:season+season:weathersit+season:atemp)
+AIC(mfull) # 3497.378
+
+mnull<-lm(count~1)
+AIC(mnull) # 5439.055
+
+ncvTest(decision1)
+yhat<-fitted(decision1)
+yhat.quantiles<-cut(yhat,breaks=quantile(yhat,probs=seq(0,1,0.25)),dig.lab = 6)
+leveneTest(rstudent(decision1)~yhat.quantiles)
+boxplot(rstudent(decision1)~yhat.quantiles) #not constant variance
+residualPlot(decision1,type="rstudent") 
+
+
+#####  TEST DATASET   ######
+
+detach(bikenew)
+
+testdata<-read.csv("bike_test.csv",header=TRUE,sep=";",dec=",")
+attach(testdata)
+
+
+temp<-41*temp
+atemp<-50*atemp
+hum<-100*hum
+windspeed<-67*windspeed
+
+holiday<-as.factor(holiday) # 1: διακοπές, 0: όχι διακοπές
+levels(holiday)<-c("no","yes")
+weekday<-as.factor(weekday)  # 0: Δευτέρα, 1: Τρίτη ..., 6 : Κυριακή
+levels(weekday)<-c("Monday","Tuesday","Thirsday","Wednesday","Friday","Saturday","Sunday")
+workingday<-as.factor(workingday)  # 1: ούτε ΣΚ ούτε διακοπές, 0: αλλιώς 
+levels(workingday)<-c("no","yes")
+weathersit<-as.factor(weathersit) 
+# 1:	Καθαρός ουρανός, Λίγα σύννεφα, Τοπικά συννεφιασμένος, Τοπικά συννεφιασμένος
+# 2:	Ομίχλη και σύννεφα, Ομίχλη και διάσπαρτα σύννεφα, Ομίχλη και λίγα σύννεφα, Ομίχλη
+# 3:	Ελαφρύ χιόνι, Ελαφριά βροχή, Καταιγίδα και διάσπαρτα σύννεφα, Ελαφριά βροχή και διάσπαρτα σύννεφα
+levels(weathersit)<-c("Clear and Few clouds","Mist and Clouds","Rain and Snow")
+yr<-as.factor(yr)
+levels(yr)<-c("2011","2012")
+
+library(Hmisc)
+#Xωρίζω την ώρα σε 4ωρα
+hr<-na.omit(hr)
+hour<-cut(hr,breaks=c(0,4,8,12,16,20,max(hr)),labels=c("0π.μ.-4π.μ.","4π.μ.-8π.μ.","8π.μ.-12μ.μ.","12μ.μ.-16μ.μ.","16μ.μ.-20μ.μ.","20μ.μ.-24μ.μ."))
+hour<- as.factor(hr) 
+levels(hour) <- c("0π.μ.-4π.μ.","4π.μ.-8π.μ.","8π.μ.-12μ.μ.","12μ.μ.-16μ.μ.","16μ.μ.-20μ.μ.","20μ.μ.-24μ.μ.")
+
+mnth<-as.numeric(mnth)
+season<-cut(mnth,breaks = c(0,3,6,9,max(mnth)),labels = c("Winter","Spring","Summer","Autumn"))
+season<-as.factor(season)
+mnth<-as.factor(mnth)
+levels(mnth)<-c("January","February","March","April","May","June","July","August","September","October","November","December")
+
+rmse<-function(model){
+  sqrt((sum(predict(model,testdata)-count)^2)/length(testdata))
+}
+rmse1<-rmse(decision1)
+rmse1
+
+
